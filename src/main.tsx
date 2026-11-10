@@ -4,9 +4,14 @@ import { configurarLocalizadorWasm } from './infrastructure';
 import { App } from './presentation/App';
 import './presentation/styles.css';
 
-// Aponta para `sql-wasm.wasm` servido localmente em `public/` (funciona 100% offline
-// no navegador e dentro do pacote Electron).
-configurarLocalizadorWasm((arquivo) => `./${arquivo}`);
+// Aponta para os arquivos WASM do SQLite servidos localmente.
+// Suporta tanto protocolo http(s):// no navegador quanto file:// no Electron.
+configurarLocalizadorWasm((arquivo) => {
+  if (typeof window !== 'undefined' && window.location.protocol === 'file:') {
+    return `./${arquivo}`;
+  }
+  return `/${arquivo}`;
+});
 
 const container = document.getElementById('root');
 if (!container) {
