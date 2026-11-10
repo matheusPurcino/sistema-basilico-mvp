@@ -1,17 +1,141 @@
 @import "tailwindcss";
 
+:root {
+  /* Tuscan Warmth — Paleta Oficial Restaurante Basílico */
+  --bg-parchment: #FAF6EE;
+  --bg-surface-secondary: #F2E9D8;
+  --bg-card: #FFFFFF;
+  --border-warm: #E6DEC8;
+  --border-warm-strong: #D5C8AE;
+
+  --bg-espresso: #1E1B18;
+  --bg-espresso-elevated: #2A2521;
+  --text-on-espresso: #F7F3EB;
+  --text-on-espresso-muted: #B8AEA2;
+
+  --color-terracotta: #E86F2C;
+  --color-terracotta-hover: #D45D1B;
+  --color-terracotta-soft: #FFF0E6;
+
+  --color-basil: #4E8C22;
+  --color-basil-vivid: #5CA329;
+  --color-basil-hover: #3E7319;
+  --color-basil-soft: #EEF7E6;
+
+  --text-primary: #23201E;
+  --text-secondary: #6E655F;
+  --text-muted: #968B82;
+
+  --color-ifood: #EA1D2C;
+  --color-aiqfome: #7B1FA2;
+  --color-warning: #D97706;
+  --color-danger: #DC2626;
+
+  --shadow-card: 0 4px 20px -2px rgba(35, 32, 30, 0.06);
+  --shadow-card-hover: 0 10px 28px -4px rgba(35, 32, 30, 0.12);
+}
+
 @layer base {
   body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-    background-color: #020617;
-    color: #f8fafc;
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: var(--bg-parchment);
+    color: var(--text-primary);
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  code, pre, .font-mono {
+    font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+    font-variant-numeric: tabular-nums;
   }
 }
 
-/* Bobina térmica 80mm estilizada com serrilhado superior/inferior */
+.font-display {
+  font-family: 'Playfair Display', Georgia, 'Times New Roman', serif;
+}
+
+.font-sans-ui {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.font-mono-tabular {
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Cards e superfícies Tuscan Warmth */
+.basilico-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-warm);
+  box-shadow: var(--shadow-card);
+}
+
+.basilico-card-interactive {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-warm);
+  box-shadow: var(--shadow-card);
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.basilico-card-interactive:hover {
+  box-shadow: var(--shadow-card-hover);
+  border-color: #D4B996;
+  transform: translateY(-1px);
+}
+
+/* Textura sutil para o painel institucional Espresso */
+.espresso-hero-pattern {
+  background-color: #1E1B18;
+  background-image:
+    radial-gradient(circle at 20% 20%, rgba(232, 111, 44, 0.14) 0%, transparent 48%),
+    radial-gradient(circle at 80% 85%, rgba(78, 140, 34, 0.12) 0%, transparent 50%),
+    radial-gradient(rgba(247, 243, 235, 0.04) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 24px 24px;
+}
+
+/* Bobina térmica 80mm realista com serrilhado de papel rasgado no topo e base */
 .thermal-paper {
-  background: linear-gradient(180deg, #fefce8 0%, #fef9c3 50%, #fefce8 100%);
-  color: #1c1917;
-  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', 'Courier New', monospace;
-  box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.65), inset 0 0 0 1px rgba(161, 98, 7, 0.25);
+  position: relative;
+  background: linear-gradient(180deg, #FFFDF2 0%, #FEF9C3 48%, #FEFCE8 100%);
+  color: #1C1917;
+  font-family: 'JetBrains Mono', 'Consolas', 'Courier New', monospace;
+  font-variant-numeric: tabular-nums;
+  box-shadow:
+    0 14px 32px -10px rgba(30, 27, 24, 0.32),
+    inset 0 0 0 1px rgba(180, 140, 60, 0.28);
+}
+
+.thermal-serrated-top {
+  height: 10px;
+  width: 100%;
+  background-image: linear-gradient(135deg, transparent 33.33%, #FFFDF2 33.33%, #FFFDF2 66.67%, transparent 66.67%),
+                    linear-gradient(45deg, transparent 33.33%, #FFFDF2 33.33%, #FFFDF2 66.67%, transparent 66.67%);
+  background-size: 12px 24px;
+}
+
+.thermal-serrated-bottom {
+  height: 10px;
+  width: 100%;
+  background-image: linear-gradient(135deg, #FEFCE8 33.33%, transparent 33.33%, transparent 66.67%, #FEFCE8 66.67%),
+                    linear-gradient(45deg, #FEFCE8 33.33%, transparent 33.33%, transparent 66.67%, #FEFCE8 66.67%);
+  background-size: 12px 24px;
+}
+
+/* Scrollbars elegantes e discretas */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(242, 233, 216, 0.5);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #CEC1AA;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #B3A287;
 }

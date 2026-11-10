@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   CATEGORIAS_PRODUTO,
-  METODOS_PAGAMENTO,
   MINUTO_MS,
   RelogioAjustavel,
   formatarBRL,
   reaisParaCentavos,
   type CategoriaProduto,
   type MetodoPagamento,
+  type Plataforma,
   type Produto,
   type RelatorioFechamento,
 } from '../domain';
@@ -18,6 +18,25 @@ import {
 } from '../infrastructure';
 import { BasilicoSystemFacade, CHAVE_AES_PADRAO_SISTEMA } from '../application';
 import { tocarAlertaSonoroDelivery } from './audio/soundAlert';
+import { BrandLogo } from './components/BrandLogo';
+import { LoginView } from './components/LoginView';
+import { PosView } from './components/PosView';
+import { ThermalPrinterDrawer } from './components/ThermalPrinterDrawer';
+import { DeliveryHubView } from './components/DeliveryHubView';
+import { CashierHistoryView } from './components/CashierHistoryView';
+import { ArchitectureInspectorView } from './components/ArchitectureInspectorView';
+import { ChaosSimulatorDock } from './components/ChaosSimulatorDock';
+import {
+  AcademicBadge,
+  IconCashier,
+  IconClock,
+  IconDelivery,
+  IconGraduation,
+  IconInspector,
+  IconLogout,
+  IconPos,
+  IconPrinter,
+} from './components/Icons';
 
 type AbaAtiva = 'PDV' | 'DELIVERY' | 'VENDAS_CAIXA' | 'INSPETOR';
 
@@ -37,6 +56,9 @@ export function App(): React.ReactElement {
   const [erroInicializacao, setErroInicializacao] = useState<string | null>(null);
   const [versaoUi, setVersaoUi] = useState(0);
 
+  // Modo Raio-X Acadêmico UNIFEI (OFF por padrão comercial realista)
+  const [modoAvaliador, setModoAvaliador] = useState<boolean>(false);
+
   // Estado de Login
   const [loginInput, setLoginInput] = useState<string>(CREDENCIAIS_HOMOLOGACAO.operador.login);
   const [senhaInput, setSenhaInput] = useState<string>(CREDENCIAIS_HOMOLOGACAO.operador.senhaPura);
@@ -47,6 +69,10 @@ export function App(): React.ReactElement {
   const [categoriaFiltro, setCategoriaFiltro] = useState<CategoriaProduto | 'TODAS'>('TODAS');
   const [descontoInputReais, setDescontoInputReais] = useState<string>('0,00');
   const [metodoSelecionado, setMetodoSelecionado] = useState<MetodoPagamento>('PIX');
+
+  // Gaveta da Bobina Térmica ESC/POS
+  const [gavetaImpressoraAberta, setGavetaImpressoraAberta] = useState<boolean>(false);
+  const [gavetaImpressoraFixada, setGavetaImpressoraFixada] = useState<boolean>(false);
 
   // Modal CRUD Produto (Nível Intermediário)
   const [modalProdutoAberto, setModalProdutoAberto] = useState(false);
@@ -83,7 +109,7 @@ export function App(): React.ReactElement {
       setToasts((prev) => [{ id, tipo, titulo, mensagem }, ...prev.slice(0, 4)]);
       setTimeout(() => {
         setToasts((prev) => prev.filter((t) => t.id !== id));
-      }, 6500);
+      }, 6000);
     },
     [],
   );
@@ -114,13 +140,29 @@ export function App(): React.ReactElement {
     };
   }, [atualizarTela]);
 
+  const handleResetarBancoDemo = useCallback((): void => {
+    SQLiteEngine.apagarArmazenamento(storageNavegador, 'basilico.pdv.web');
+    if (sistema) {
+      sistema.nuvem.limpar();
+    }
+    try {
+      globalThis.localStorage?.removeItem('basilico.cloud.pg_transactions');
+    } catch {
+      /* ignore */
+    }
+    window.location.reload();
+  }, [sistema]);
+
   if (carregando) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-6">
-        <div className="w-12 h-12 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin mb-4" />
-        <h1 className="text-xl font-bold text-emerald-400">Inicializando Motor Híbrido Basílico...</h1>
-        <p className="text-sm text-slate-400 mt-1">
-          Carregando SQLite WebAssembly (Modo WAL) + Camada AES-256-GCM (SQLCipher)
+      <div className="min-h-screen bg-[#FAF6EE] text-[#23201E] flex flex-col items-center justify-center p-6">
+        <BrandLogo size="lg" className="mb-5 animate-pulse" />
+        <div className="w-8 h-8 rounded-full border-3 border-[#E86F2C] border-t-transparent animate-spin mb-3" />
+        <h1 className="font-display text-2xl font-bold text-[#23201E]">
+          Restaurante Basílico
+        </h1>
+        <p className="text-xs text-[#6E655F] mt-1">
+          Preparando terminal de vendas e banco local seguro...
         </p>
       </div>
     );
@@ -128,25 +170,24 @@ export function App(): React.ReactElement {
 
   if (erroInicializacao || !sistema) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-6">
-        <div className="max-w-lg w-full bg-red-950/60 border border-red-500/60 rounded-xl p-6">
-          <h2 className="text-lg font-bold text-red-300">Erro ao inicializar banco local cifrado</h2>
-          <p className="text-sm text-red-200 mt-2">{erroInicializacao}</p>
+      <div className="min-h-screen bg-[#FAF6EE] text-[#23201E] flex flex-col items-center justify-center p-6">
+        <div className="max-w-lg w-full basilico-card rounded-2xl p-6 border-red-300">
+          <h2 className="font-display text-xl font-bold text-[#DC2626]">
+            Erro ao inicializar banco de dados do terminal
+          </h2>
+          <p className="text-xs text-[#6E655F] mt-2">{erroInicializacao}</p>
           <button
-            onClick={() => {
-              SQLiteEngine.apagarArmazenamento(storageNavegador, 'basilico.pdv.web');
-              window.location.reload();
-            }}
-            className="mt-4 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-semibold text-sm cursor-pointer"
+            type="button"
+            onClick={handleResetarBancoDemo}
+            className="mt-4 px-4 py-2.5 rounded-xl bg-[#E86F2C] hover:bg-[#D45D1B] text-white font-bold text-xs cursor-pointer"
           >
-            Limpar Storage Local e Recarregar
+            Restaurar Dados de Fábrica e Recarregar
           </button>
         </div>
       </div>
     );
   }
 
-  // Referencia versaoUi para re-renderizar quando o estado interno mudar
   void versaoUi;
 
   const usuarioLogado = sistema.auth.getUsuarioAtual();
@@ -154,9 +195,7 @@ export function App(): React.ReactElement {
   const estadoMaquina = sistema.caixa.getEstadoMaquina();
   const subEstadoOffline = sistema.caixa.getSubEstadoOffline();
   const carrinho = sistema.getCarrinho();
-  const produtos = sistema
-    .listarProdutos()
-    .filter((p) => categoriaFiltro === 'TODAS' || p.categoria === categoriaFiltro);
+  const todosProdutos = sistema.listarProdutos();
   const pedidosDelivery = sistema.pedidosRepo.listar();
   const filaReimpressao = sistema.getFilaReimpressao();
   const vendas = sistema.vendasRepo.listar();
@@ -166,21 +205,23 @@ export function App(): React.ReactElement {
   const transacoesNuvem = sistema.nuvem.listarTransacoes();
   const auditLogs = sistema.auditRepo.listar(80);
   const ultimaImpressao = sistema.impressora.obterUltimaImpressao();
+  const historicoImpressoes = sistema.impressora.listarHistorico();
   const popupDelivery = sistema.getUltimoPedidoPopup();
   const statsSqlite = sistema.db.estatisticas();
   const statsNuvem = sistema.nuvem.estatisticas();
 
   // ───────────────────────── Handlers de Autenticação ─────────────────────────
 
-  const handleLogin = (e: React.FormEvent): void => {
-    e.preventDefault();
+  const executarLogin = (loginStr: string, senhaStr: string): void => {
     setErroLogin(null);
     try {
-      const user = sistema.login(loginInput, senhaInput);
+      const user = sistema.login(loginStr, senhaStr);
       adicionarToast(
         'SUCESSO',
-        `Bem-vindo, ${user.getNome()} (${user.getPapel()})`,
-        `Autenticação offline concluída via cache cifrado em ${sistema.auth.getUltimoTempoAutenticacaoMs()}ms.`,
+        `Bom turno, ${user.getNome()}!`,
+        modoAvaliador
+          ? `Autenticação offline concluída via cache cifrado (${sistema.auth.getUltimoTempoAutenticacaoMs()}ms).`
+          : `Você entrou como ${user.getPapel() === 'GERENTE' ? 'Gerente de Loja' : 'Operador de Caixa'}.`,
       );
       atualizarTela();
     } catch (err) {
@@ -189,14 +230,18 @@ export function App(): React.ReactElement {
     }
   };
 
-  const preencherCredencialRapida = (perfil: 'OPERADOR' | 'GERENTE'): void => {
-    setErroLogin(null);
-    if (perfil === 'OPERADOR') {
-      setLoginInput(CREDENCIAIS_HOMOLOGACAO.operador.login);
-      setSenhaInput(CREDENCIAIS_HOMOLOGACAO.operador.senhaPura);
-    } else {
-      setLoginInput(CREDENCIAIS_HOMOLOGACAO.gerente.login);
-      setSenhaInput(CREDENCIAIS_HOMOLOGACAO.gerente.senhaPura);
+  const handleLogin = (e: React.FormEvent): void => {
+    e.preventDefault();
+    executarLogin(loginInput, senhaInput);
+  };
+
+  const handleAcessoRapido = (perfil: 'OPERADOR' | 'GERENTE', logarDireto: boolean): void => {
+    const cred =
+      perfil === 'OPERADOR' ? CREDENCIAIS_HOMOLOGACAO.operador : CREDENCIAIS_HOMOLOGACAO.gerente;
+    setLoginInput(cred.login);
+    setSenhaInput(cred.senhaPura);
+    if (logarDireto) {
+      executarLogin(cred.login, cred.senhaPura);
     }
   };
 
@@ -205,8 +250,8 @@ export function App(): React.ReactElement {
     sistema.auth.verificarInatividade();
     adicionarToast(
       'ALERTA',
-      'Sessão Bloqueada por Inatividade (RNF05.3)',
-      'Relógio avançado em +31 minutos. A sessão foi encerrada automaticamente.',
+      'Terminal Bloqueado por Inatividade',
+      'Mais de 30 minutos sem interação. Faça login novamente para retomar o turno.',
     );
     atualizarTela();
   };
@@ -218,7 +263,16 @@ export function App(): React.ReactElement {
       await sistema.adicionarAoCarrinho(idProduto, 1);
       atualizarTela();
     } catch (err) {
-      adicionarToast('ERRO', 'Erro no carrinho', err instanceof Error ? err.message : String(err));
+      adicionarToast('ERRO', 'Erro na comanda', err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const handleAlterarQuantidadeCarrinho = async (idProduto: number, novaQtd: number): Promise<void> => {
+    try {
+      await sistema.alterarQuantidadeCarrinho(idProduto, novaQtd);
+      atualizarTela();
+    } catch (err) {
+      adicionarToast('ERRO', 'Erro ao atualizar item', err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -226,7 +280,7 @@ export function App(): React.ReactElement {
     try {
       const centavos = reaisParaCentavos(descontoInputReais || '0');
       await sistema.aplicarDescontoCarrinho(centavos);
-      adicionarToast('INFO', 'Desconto Aplicado', `Desconto de ${formatarBRL(centavos)} gravado no WAL.`);
+      adicionarToast('INFO', 'Desconto Aplicado', `Desconto de ${formatarBRL(centavos)} salvo na comanda.`);
       atualizarTela();
     } catch (err) {
       adicionarToast('ERRO', 'Desconto Inválido', err instanceof Error ? err.message : String(err));
@@ -238,12 +292,13 @@ export function App(): React.ReactElement {
       const res = await sistema.finalizarVendaCarrinho(metodoSelecionado);
       tocarAlertaSonoroDelivery('VENDA_OK');
       setDescontoInputReais('0,00');
+      setGavetaImpressoraAberta(true);
       adicionarToast(
         'SUCESSO',
-        `Venda #${res.venda.getNumeroSequencial()} Finalizada (${res.tempoProcessamentoMs}ms)`,
+        `Venda #${String(res.venda.getNumeroSequencial()).padStart(4, '0')} Concluída!`,
         res.sincronizadaImediatamente
-          ? `Total ${formatarBRL(res.venda.getValorTotalCentavos())} sincronizado na nuvem e impresso na bobina 80mm.`
-          : `Gravada localmente na Outbox (seq #${res.seqOutbox}) em modo Offline-First.`,
+          ? `Total de ${formatarBRL(res.venda.getValorTotalCentavos())} aprovado e cupom emitido na impressora.`
+          : `Venda salva localmente no modo Offline (${formatarBRL(res.venda.getValorTotalCentavos())}).`,
       );
       atualizarTela();
     } catch (err) {
@@ -256,7 +311,7 @@ export function App(): React.ReactElement {
     setProdNome('');
     setProdDescricao('');
     setProdCategoria('MASSAS');
-    setProdPrecoReais('52,90');
+    setProdPrecoReais('54,90');
     setModalProdutoAberto(true);
   };
 
@@ -267,6 +322,19 @@ export function App(): React.ReactElement {
     setProdCategoria(p.categoria);
     setProdPrecoReais((p.precoCentavos / 100).toFixed(2).replace('.', ','));
     setModalProdutoAberto(true);
+  };
+
+  const handleExcluirProduto = async (p: Produto): Promise<void> => {
+    try {
+      sistema.removerProduto(p.id);
+      if (carrinho.getItens().some((i) => i.getIdProduto() === p.id)) {
+        await sistema.removerDoCarrinho(p.id);
+      }
+      adicionarToast('INFO', 'Prato Removido', `"${p.nome}" foi excluído do catálogo.`);
+      atualizarTela();
+    } catch (err) {
+      adicionarToast('ERRO', 'Erro ao excluir prato', err instanceof Error ? err.message : String(err));
+    }
   };
 
   const handleSalvarProduto = (e: React.FormEvent): void => {
@@ -281,7 +349,7 @@ export function App(): React.ReactElement {
           categoria: prodCategoria,
           precoCentavos,
         });
-        adicionarToast('SUCESSO', 'Produto Atualizado', `"${prodNome}" atualizado no catálogo SQLite.`);
+        adicionarToast('SUCESSO', 'Cardápio Atualizado', `"${prodNome}" foi salvo com sucesso.`);
       } else {
         const criado = sistema.cadastrarProduto({
           nome: prodNome,
@@ -290,12 +358,12 @@ export function App(): React.ReactElement {
           precoCentavos,
           ativo: true,
         });
-        adicionarToast('SUCESSO', 'Produto Cadastrado', `"${criado.nome}" adicionado ao catálogo.`);
+        adicionarToast('SUCESSO', 'Novo Prato Adicionado', `"${criado.nome}" já está disponível no PDV.`);
       }
       setModalProdutoAberto(false);
       atualizarTela();
     } catch (err) {
-      adicionarToast('ERRO', 'Erro na validação do produto', err instanceof Error ? err.message : String(err));
+      adicionarToast('ERRO', 'Dados inválidos no cadastro', err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -306,14 +374,19 @@ export function App(): React.ReactElement {
       const res = sistema.aceitarPedidoDelivery(idInterno);
       if (res.impressoComSucesso) {
         tocarAlertaSonoroDelivery('VENDA_OK');
+        setGavetaImpressoraAberta(true);
         adicionarToast(
           'SUCESSO',
           `Pedido #${res.pedido.getCodigoExterno()} em Preparo!`,
-          `API parceira notificada e via impressa na cozinha em ${res.tempoImpressaoMs}ms.`,
+          `Via de produção impressa na cozinha (${res.tempoImpressaoMs}ms).`,
         );
       } else {
         tocarAlertaSonoroDelivery('ERRO_IMPRESSORA');
-        adicionarToast('ALERTA', 'Falha Física na Impressora (RN03)', res.alertaErroImpressao ?? 'Sem papel.');
+        adicionarToast(
+          'ALERTA',
+          'Impressora da Cozinha Sem Bobina!',
+          res.alertaErroImpressao ?? 'Troque a bobina de papel e clique em Reimprimir.',
+        );
       }
       atualizarTela();
     } catch (err) {
@@ -326,14 +399,15 @@ export function App(): React.ReactElement {
       const res = sistema.reimprimirViaCozinha(idInterno);
       if (res.impressoComSucesso) {
         tocarAlertaSonoroDelivery('VENDA_OK');
+        setGavetaImpressoraAberta(true);
         adicionarToast(
           'SUCESSO',
           `Via Reimpressa (#${res.pedido.getCodigoExterno()})`,
-          'Confirmação física recebida. Status atualizado para EM_PREPARO.',
+          'Comanda impressa na cozinha. O pedido entrou em preparo!',
         );
       } else {
         tocarAlertaSonoroDelivery('ERRO_IMPRESSORA');
-        adicionarToast('ERRO', 'Impressora continua sem bobina', res.alertaErroImpressao ?? 'Sem papel.');
+        adicionarToast('ERRO', 'Impressora continua sem papel', res.alertaErroImpressao ?? 'Sem papel.');
       }
       atualizarTela();
     } catch (err) {
@@ -346,7 +420,7 @@ export function App(): React.ReactElement {
     if (!pedidoAlvoRecusa) return;
     try {
       const p = sistema.recusarPedidoDelivery(pedidoAlvoRecusa, motivoRecusaDelivery);
-      adicionarToast('INFO', `Pedido #${p.getCodigoExterno()} Recusado`, `Motivo enviado à plataforma: ${motivoRecusaDelivery}`);
+      adicionarToast('INFO', `Pedido #${p.getCodigoExterno()} Recusado`, `Motivo enviado: ${motivoRecusaDelivery}`);
       setPedidoAlvoRecusa(null);
       atualizarTela();
     } catch (err) {
@@ -367,14 +441,14 @@ export function App(): React.ReactElement {
       const ev = await sistema.autorizarEstornoVenda(vendaAlvoEstorno, motivoEstorno, credencial);
       adicionarToast(
         'SUCESSO',
-        'Estorno Autorizado (RN02)',
-        `Evento compensatório ${ev.idEvento.slice(0, 8)}… gerado por ${ev.autorizadoPor}. Venda original preservada.`,
+        'Estorno Autorizado pelo Gerente',
+        `Evento compensatório #${ev.idEvento.slice(0, 8)} registrado por ${ev.autorizadoPor}.`,
       );
       setVendaAlvoEstorno(null);
       setMotivoEstorno('');
       atualizarTela();
     } catch (err) {
-      adicionarToast('ERRO', 'Estorno Negado (RBAC / RN02)', err instanceof Error ? err.message : String(err));
+      adicionarToast('ERRO', 'Estorno Não Autorizado', err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -382,7 +456,7 @@ export function App(): React.ReactElement {
     try {
       const centavos = reaisParaCentavos(saldoAberturaReais);
       sistema.abrirCaixa(centavos);
-      adicionarToast('SUCESSO', 'Caixa Aberto', `Fundo de troco inicial: ${formatarBRL(centavos)}.`);
+      adicionarToast('SUCESSO', 'Turno de Caixa Aberto', `Fundo de troco inicial: ${formatarBRL(centavos)}.`);
       atualizarTela();
     } catch (err) {
       adicionarToast('ERRO', 'Erro ao abrir caixa', err instanceof Error ? err.message : String(err));
@@ -396,11 +470,11 @@ export function App(): React.ReactElement {
       if (rel.alertaPendencia) {
         adicionarToast(
           'ALERTA',
-          'Caixa Fechado com Ressalva (RN04)',
-          `${rel.pendenciasOutbox} evento(s) não sincronizado(s) na Outbox foram preservados para o próximo ciclo online.`,
+          'Caixa Fechado com Ressalva Offline',
+          `${rel.pendenciasOutbox} venda(s) na fila local serão sincronizadas assim que a internet voltar.`,
         );
       } else {
-        adicionarToast('SUCESSO', 'Caixa Fechado', `Saldo final apurado: ${formatarBRL(rel.saldoFinalCentavos)}.`);
+        adicionarToast('SUCESSO', 'Turno Encerrado com Sucesso', `Saldo final: ${formatarBRL(rel.saldoFinalCentavos)}.`);
       }
       atualizarTela();
     } catch (err) {
@@ -408,7 +482,7 @@ export function App(): React.ReactElement {
     }
   };
 
-  // ───────────────────────── Handlers do Painel de Caos ─────────────────────────
+  // ───────────────────────── Handlers do Simulador de Caos ─────────────────────────
 
   const handleToggleWan = async (): Promise<void> => {
     const novoOnline = !sistema.isRedeWanOnline();
@@ -416,20 +490,20 @@ export function App(): React.ReactElement {
     if (!novoOnline) {
       adicionarToast(
         'ALERTA',
-        'Queda de Rede WAN Simulada',
-        'Máquina de estados comutou para OperandoOffline. Vendas serão gravadas na Outbox local.',
+        'Modo Offline Ativado',
+        'Sem conexão com a internet. O PDV continuará registrando vendas localmente.',
       );
     } else if (rel?.sucesso) {
       adicionarToast(
         'SUCESSO',
-        'Rede Restaurada & Sincronizada',
-        `${rel.eventosConfirmados} evento(s) sincronizado(s) com o PostgreSQL (${rel.duplicadosDescartadosNuvem} duplicatas descartadas).`,
+        'Conexão Restaurada & Sincronizada',
+        `${rel.eventosConfirmados} evento(s) enviados para a nuvem (${rel.duplicadosDescartadosNuvem} duplicatas ignoradas).`,
       );
     } else {
       adicionarToast(
         'ERRO',
-        'Falha na Sincronização em Lote (CT13)',
-        `${rel?.erro ?? 'Erro de rede'} — Rollback integral executado no PostgreSQL e PDV retornado a OperandoOffline.`,
+        'Falha na Sincronização em Lote',
+        `${rel?.erro ?? 'Corte de rede'} — Rollback atômico executado e fila preservada localmente.`,
       );
     }
     atualizarTela();
@@ -440,10 +514,10 @@ export function App(): React.ReactElement {
     sistema.impressora.definirBobinaPresente(novoEstado);
     adicionarToast(
       novoEstado ? 'SUCESSO' : 'ALERTA',
-      novoEstado ? 'Bobina 80mm Reposta na Impressora' : 'Simulação: Impressora Sem Bobina (RN03)',
+      novoEstado ? 'Bobina 80mm Reposta na Impressora' : 'Impressora Sem Bobina de Papel',
       novoEstado
-        ? 'Porta 9100 pronta. Você já pode reimprimir as vias retidas em PENDENTE_IMPRESSAO.'
-        : 'Próximos aceites detectarão falta de papel em 180ms (<= 3s) e reterão o status em PENDENTE_IMPRESSAO.',
+        ? 'A impressora térmica está pronta para emitir cupons e vias da cozinha.'
+        : 'Novos pedidos aceitos ficarão retidos na fila até a reposição do papel.',
     );
     atualizarTela();
   };
@@ -453,15 +527,15 @@ export function App(): React.ReactElement {
     sistema.nuvem.definirCorteMeioDoLote(novo);
     adicionarToast(
       novo ? 'ALERTA' : 'INFO',
-      novo ? 'Toxiproxy Ativo: Corte no Meio do Lote (CT13)' : 'Servidor PostgreSQL Saudável',
+      novo ? 'Simulação: Corte de Rede no Meio do Lote' : 'Servidor Nuvem Normalizado',
       novo
-        ? 'A próxima sincronização sofrerá queda TCP na metade do lote, provando o rollback atômico remoto.'
-        : 'Recebimento de lotes normalizado na nuvem.',
+        ? 'A próxima sincronização será interrompida na metade para demonstrar o rollback atômico.'
+        : 'Recebimento de lotes normalizado no PostgreSQL.',
     );
     atualizarTela();
   };
 
-  const handleInjetarPedido = (plataforma: 'IFOOD' | 'AIQFOME', duplicado = false): void => {
+  const handleInjetarPedido = (plataforma: Plataforma, duplicado = false): void => {
     try {
       const res = sistema.injetarPedidoSimulado(plataforma, duplicado);
       if (res.status === 'ACEITO_FILA' && res.pedido) {
@@ -474,8 +548,8 @@ export function App(): React.ReactElement {
       } else if (res.status === 'DUPLICATA_DESCARTADA') {
         adicionarToast(
           'ALERTA',
-          'Idempotência: Pedido Duplicado Descartado (CT06)',
-          `O codigoExterno repetido da plataforma ${plataforma} foi ignorado sem duplicar na fila.`,
+          'Pedido Duplicado Ignorado (Idempotência)',
+          `O código externo repetido da plataforma ${plataforma} foi descartado automaticamente.`,
         );
       }
       atualizarTela();
@@ -490,1220 +564,521 @@ export function App(): React.ReactElement {
   };
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // TELA DE LOGIN (QUANDO DESLOGADO OU BLOQUEADO POR INATIVIDADE)
+  // 1. TELA DE LOGIN SPLIT-SCREEN (QUANDO DESLOGADO OU BLOQUEADO)
   // ═══════════════════════════════════════════════════════════════════════════
 
   if (!usuarioLogado) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between p-6">
-        <div className="max-w-md w-full mx-auto my-auto bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-8">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <span className="inline-block text-xs font-bold uppercase tracking-widest px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                UNIFEI · ECOT11A · MVP
-              </span>
-              <h1 className="text-2xl font-extrabold text-white mt-2">Restaurante Basílico</h1>
-              <p className="text-xs text-slate-400">PDV Híbrido Offline-First &amp; Hub Central de Delivery</p>
-            </div>
-            <div className="w-12 h-12 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300 font-black text-xl">
-              B
-            </div>
-          </div>
-
-          {bloqueadaInatividade && (
-            <div className="mb-4 p-3 rounded-lg bg-amber-950/80 border border-amber-500/60 text-amber-200 text-xs">
-              <strong>Sessão bloqueada por inatividade (RNF05.3 / CT04):</strong> Mais de 30 minutos sem interação.
-              Autentique-se novamente para retomar o turno (seu carrinho WAL permanece salvo).
-            </div>
-          )}
-
-          {erroLogin && (
-            <div
-              role="alert"
-              className="mb-4 p-3 rounded-lg bg-red-950/90 border border-red-500 text-red-200 text-xs font-medium"
-            >
-              {erroLogin}
-            </div>
-          )}
-
-          {/* Botões de preenchimento rápido de 1 clique para o Professor Avaliador */}
-          <div className="mb-5 p-3.5 rounded-xl bg-slate-950/90 border border-slate-800">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-400 mb-2">
-              Acesso Rápido para Homologação (1 Clique)
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => preencherCredencialRapida('OPERADOR')}
-                className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-slate-100 transition cursor-pointer"
-              >
-                Preencher Operador
-              </button>
-              <button
-                type="button"
-                onClick={() => preencherCredencialRapida('GERENTE')}
-                className="px-3 py-2 rounded-lg bg-emerald-950/80 hover:bg-emerald-900/80 border border-emerald-500/40 text-xs font-semibold text-emerald-200 transition cursor-pointer"
-              >
-                Preencher Gerente
-              </button>
-            </div>
-          </div>
-
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
-                Usuário ou E-mail
-              </label>
-              <input
-                type="text"
-                value={loginInput}
-                onChange={(e) => setLoginInput(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-lg bg-slate-950 border border-slate-700 text-sm text-white focus:outline-none focus:border-emerald-400"
-                placeholder="operador ou gerente"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
-                Senha (bcrypt cost 12 · Cache Cifrado Offline)
-              </label>
-              <input
-                type="password"
-                value={senhaInput}
-                onChange={(e) => setSenhaInput(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-lg bg-slate-950 border border-slate-700 text-sm text-white focus:outline-none focus:border-emerald-400"
-                required
-              />
-            </div>
-
-            <button
-              type="submit"
-              className="w-full py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm shadow-lg shadow-emerald-500/20 transition cursor-pointer"
-            >
-              Autenticar no PDV
-            </button>
-          </form>
-
-          <div className="mt-5 pt-4 border-t border-slate-800 text-[11px] text-slate-400 space-y-1">
-            <div className="flex justify-between">
-              <span>Carrinho salvo no WAL (RPO=0):</span>
-              <span className="font-mono text-emerald-300">
-                {carrinho.getQuantidadeItens()} item(ns) · {formatarBRL(carrinho.getTotalCentavos())}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span>Cifragem Local:</span>
-              <span className="font-mono text-slate-300">AES-256-GCM (PBKDF2 120k)</span>
-            </div>
-          </div>
-        </div>
-
-        <footer className="text-center text-xs text-slate-500">
-          Universidade Federal de Itajubá (UNIFEI) · ECOT11A / ECOT01 · Autor: Matheus Gouveia Purcino (2024006907)
-        </footer>
-      </div>
+      <LoginView
+        loginInput={loginInput}
+        senhaInput={senhaInput}
+        erroLogin={erroLogin}
+        bloqueadaInatividade={bloqueadaInatividade}
+        itensSalvosCarrinho={carrinho.getQuantidadeItens()}
+        totalSalvoCarrinhoCentavos={carrinho.getTotalCentavos()}
+        modoAvaliador={modoAvaliador}
+        onToggleModoAvaliador={() => setModoAvaliador((v) => !v)}
+        onChangeLogin={setLoginInput}
+        onChangeSenha={setSenhaInput}
+        onSubmitLogin={handleLogin}
+        onAcessoRapido={handleAcessoRapido}
+      />
     );
   }
 
+  // Contadores de Badges de Navegação
+  const qtdPedidosAtivosDelivery = pedidosDelivery.filter(
+    (p) => p.getStatus() === 'RECEBIDO' || p.getStatus() === 'PENDENTE_IMPRESSAO',
+  ).length;
+
   // ═══════════════════════════════════════════════════════════════════════════
-  // INTERFACE OPERACIONAL PRINCIPAL
+  // 2. ESTRUTURA PRINCIPAL LOGADA (SIDEBAR ESPRESSO + TOPBAR + WORKSPACE)
   // ═══════════════════════════════════════════════════════════════════════════
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col pb-44">
+    <div className="min-h-screen bg-[#FAF6EE] text-[#23201E] flex flex-col lg:flex-row">
       {/* Toasts Flutuantes */}
-      <div className="fixed top-4 right-4 z-50 space-y-2 max-w-md w-full pointer-events-none">
+      <div className="fixed top-16 right-4 z-50 space-y-2 max-w-sm w-full pointer-events-none">
         {toasts.map((t) => (
           <div
             key={t.id}
-            className={`pointer-events-auto p-3.5 rounded-xl border shadow-xl backdrop-blur-md text-xs ${
+            className={`pointer-events-auto p-3.5 rounded-2xl border shadow-xl text-xs transition-all ${
               t.tipo === 'SUCESSO'
-                ? 'bg-emerald-950/95 border-emerald-500 text-emerald-100'
+                ? 'bg-[#EEF7E6] border-[#4E8C22] text-[#1E3B0B]'
                 : t.tipo === 'ALERTA'
-                  ? 'bg-amber-950/95 border-amber-500 text-amber-100'
+                  ? 'bg-amber-50 border-[#D97706] text-amber-950'
                   : t.tipo === 'ERRO'
-                    ? 'bg-red-950/95 border-red-500 text-red-100'
-                    : 'bg-slate-900/95 border-sky-500 text-sky-100'
+                    ? 'bg-red-50 border-[#DC2626] text-red-950'
+                    : 'bg-[#1E1B18] border-[#3E362E] text-[#F7F3EB]'
             }`}
           >
-            <div className="font-bold text-sm">{t.titulo}</div>
-            <div className="mt-0.5 opacity-90">{t.mensagem}</div>
+            <div className="font-extrabold text-sm">{t.titulo}</div>
+            <div className="mt-0.5 opacity-90 leading-relaxed">{t.mensagem}</div>
           </div>
         ))}
       </div>
 
-      {/* Pop-up de Alto Contraste ao chegar Novo Pedido de Delivery (RNF03.4) */}
-      {popupDelivery && (
-        <div className="bg-emerald-500 text-slate-950 px-6 py-3 flex flex-wrap items-center justify-between gap-4 shadow-lg border-b-2 border-emerald-300">
-          <div className="flex items-center gap-3">
-            <span className="px-2.5 py-1 rounded bg-slate-950 text-emerald-400 font-black text-xs uppercase">
-              NOVO PEDIDO {popupDelivery.getPlataforma()} #{popupDelivery.getCodigoExterno()}
-            </span>
-            <span className="font-bold text-sm">
-              {popupDelivery.getClienteNome()} — {formatarBRL(popupDelivery.getValorTotalCentavos())} (
-              {popupDelivery.getItens().length} item(ns))
-            </span>
+      {/* ───────────────────────── SIDEBAR LATERAL ESQUERDA (ESPRESSO #1E1B18) ───────────────────────── */}
+      <aside className="lg:w-64 bg-[#1E1B18] text-[#F7F3EB] border-b lg:border-b-0 lg:border-r border-[#332D27] flex flex-col justify-between shrink-0 select-none">
+        <div>
+          {/* Identidade da Marca Basílico */}
+          <div className="p-4 lg:p-5 border-b border-[#332D27] flex items-center gap-3">
+            <BrandLogo size="md" />
+            <div className="min-w-0">
+              <h1 className="font-display text-lg font-bold italic text-[#F7F3EB] leading-none truncate">
+                Basílico
+              </h1>
+              <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#E86F2C] block mt-1">
+                Restaurante · POS
+              </span>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => {
-                setAbaAtiva('DELIVERY');
-                handleAceitarDelivery(popupDelivery.getIdInterno());
-              }}
-              className="px-3.5 py-1.5 rounded-lg bg-slate-950 hover:bg-slate-800 text-emerald-300 font-bold text-xs cursor-pointer"
-            >
-              Aceitar e Imprimir Agora (RF04)
-            </button>
-            <button
-              onClick={() => {
-                sistema.dispensarPopupDelivery();
-                atualizarTela();
-              }}
-              className="px-2.5 py-1.5 rounded-lg bg-emerald-600/40 hover:bg-emerald-600/60 text-slate-950 font-semibold text-xs cursor-pointer"
-            >
-              Ocultar Aviso
-            </button>
-          </div>
+
+          {/* Menu de Navegação Principal (4 Seções) */}
+          <nav className="p-3 flex lg:flex-col gap-1.5 overflow-x-auto">
+            {(
+              [
+                {
+                  id: 'PDV',
+                  titulo: modoAvaliador ? '1. Frente de Caixa (RF01)' : 'Frente de Caixa (PDV)',
+                  subtitulo: 'Balcão & Comanda',
+                  icone: <IconPos size={18} />,
+                  badge: carrinho.getQuantidadeItens() > 0 ? `${carrinho.getQuantidadeItens()}` : null,
+                  pulsante: false,
+                },
+                {
+                  id: 'DELIVERY',
+                  titulo: modoAvaliador ? '2. Hub Delivery (RF03/RN03)' : 'Hub de Delivery',
+                  subtitulo: 'iFood & Aiqfome',
+                  icone: <IconDelivery size={18} />,
+                  badge: qtdPedidosAtivosDelivery > 0 ? `${qtdPedidosAtivosDelivery} novo(s)` : null,
+                  pulsante: qtdPedidosAtivosDelivery > 0,
+                },
+                {
+                  id: 'VENDAS_CAIXA',
+                  titulo: modoAvaliador ? '3. Caixa & Estornos (RN02/RN04)' : 'Caixa, Vendas & Estornos',
+                  subtitulo: 'Turno & Histórico',
+                  icone: <IconCashier size={18} />,
+                  badge: vendas.length > 0 ? `${vendas.length}` : null,
+                  pulsante: false,
+                },
+                {
+                  id: 'INSPETOR',
+                  titulo: modoAvaliador ? '4. Inspetor Outbox & LGPD' : 'Auditoria & Sincronização',
+                  subtitulo: 'Outbox, Nuvem & LGPD',
+                  icone: <IconInspector size={18} />,
+                  badge: outboxPendentes > 0 ? `${outboxPendentes} fila` : null,
+                  pulsante: false,
+                },
+              ] as const
+            ).map((item) => {
+              const ativo = abaAtiva === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setAbaAtiva(item.id)}
+                  className={`px-3.5 py-3 rounded-xl text-left flex items-center justify-between gap-2.5 transition shrink-0 lg:w-full cursor-pointer ${
+                    ativo
+                      ? 'bg-[#E86F2C] text-white shadow-md shadow-[#E86F2C]/20'
+                      : 'text-[#D1C7B8] hover:bg-[#2A2521] hover:text-white'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className={ativo ? 'text-white' : 'text-[#E86F2C]'}>{item.icone}</span>
+                    <div className="min-w-0">
+                      <div className="text-xs font-extrabold truncate">{item.titulo}</div>
+                      <div
+                        className={`text-[10px] hidden lg:block truncate ${
+                          ativo ? 'text-white/85' : 'text-[#968B82]'
+                        }`}
+                      >
+                        {item.subtitulo}
+                      </div>
+                    </div>
+                  </div>
+
+                  {item.badge && (
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-extrabold shrink-0 ${
+                        ativo
+                          ? 'bg-[#1E1B18] text-[#F7F3EB]'
+                          : item.pulsante
+                            ? 'bg-[#EA1D2C] text-white animate-pulse'
+                            : 'bg-[#2A2521] text-[#E5DAC8]'
+                      }`}
+                    >
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
         </div>
-      )}
 
-      {/* ───────────────────────── HEADER OPERACIONAL ───────────────────────── */}
-      <header className="bg-slate-900/95 border-b border-slate-800 px-6 py-3.5 sticky top-0 z-30 backdrop-blur">
-        <div className="max-w-[1600px] mx-auto flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-400/50 flex items-center justify-center text-emerald-300 font-black text-lg">
-              B
+        {/* Rodapé da Sidebar */}
+        <div className="hidden lg:block p-4 border-t border-[#332D27] space-y-2 text-[11px] text-[#968B82]">
+          <div className="flex items-center justify-between">
+            <span>Unidade:</span>
+            <span className="font-semibold text-[#D1C7B8]">Pouso Alegre · MG</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Criptografia:</span>
+            <span className="font-mono text-[#7AC13A]">AES-256-GCM</span>
+          </div>
+          {modoAvaliador && (
+            <div className="pt-2 border-t border-[#2A2521] text-[10px] text-[#B8AEA2]">
+              UNIFEI · ECOT11A · Matheus Purcino
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-base font-extrabold tracking-tight text-white">
-                  Restaurante Basílico
-                </h1>
-                <span className="text-[11px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono">
-                  Pouso Alegre/MG
-                </span>
-              </div>
-              <p className="text-xs text-slate-400">
-                PDV Offline-First &amp; Hub de Delivery · UNIFEI ECOT11A
-              </p>
+          )}
+        </div>
+      </aside>
+
+      {/* ───────────────────────── COLUNA DIREITA: TOPBAR + WORKSPACE ───────────────────────── */}
+      <div className="flex-1 flex flex-col min-w-0 pb-14">
+        {/* Banner de Alerta Sonoro/Visual de Novo Pedido Delivery */}
+        {popupDelivery && (
+          <div className="bg-[#E86F2C] text-white px-5 py-2.5 flex flex-wrap items-center justify-between gap-3 shadow-md">
+            <div className="flex items-center gap-2.5 text-xs">
+              <span className="px-2 py-0.5 rounded bg-[#1E1B18] text-[#FFB685] font-mono font-extrabold uppercase">
+                🔔 Novo {popupDelivery.getPlataforma()} #{popupDelivery.getCodigoExterno()}
+              </span>
+              <span className="font-bold">
+                {popupDelivery.getClienteNome()} — {formatarBRL(popupDelivery.getValorTotalCentavos())} (
+                {popupDelivery.getItens().length} item(ns))
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setAbaAtiva('DELIVERY');
+                  handleAceitarDelivery(popupDelivery.getIdInterno());
+                }}
+                className="px-3 py-1 rounded-lg bg-[#1E1B18] hover:bg-[#2F2A25] text-white font-bold text-xs cursor-pointer"
+              >
+                ✓ Aceitar e Imprimir na Cozinha
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  sistema.dispensarPopupDelivery();
+                  atualizarTela();
+                }}
+                className="px-2.5 py-1 rounded-lg bg-white/20 hover:bg-white/30 text-white font-semibold text-xs cursor-pointer"
+              >
+                Ocultar
+              </button>
             </div>
           </div>
+        )}
 
-          {/* Indicador Luminoso da Máquina de Estados (Figura 4 / RNF01.4) */}
-          <div className="flex flex-wrap items-center gap-3">
+        {/* TOPBAR OPERACIONAL ENXUTA */}
+        <header className="bg-white border-b border-[#E6DEC8] px-5 py-2.5 sticky top-0 z-30 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+          {/* Esquerda: Status de Conexão + Status do Caixa */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Pílula de Status de Conexão */}
             <div
-              className={`flex items-center gap-2.5 px-3.5 py-1.5 rounded-full border text-xs font-bold ${
+              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-extrabold border ${
                 estadoMaquina === 'OperandoOnline'
-                  ? 'bg-emerald-950/90 border-emerald-500/60 text-emerald-300'
+                  ? 'bg-[#EEF7E6] border-[#4E8C22]/40 text-[#3E7319]'
                   : estadoMaquina === 'Sincronizando'
-                    ? 'bg-amber-950/90 border-amber-400 text-amber-200 animate-pulse'
-                    : 'bg-red-950/90 border-red-500 text-red-200'
+                    ? 'bg-amber-50 border-[#D97706] text-amber-900 animate-pulse'
+                    : 'bg-red-50 border-[#DC2626]/50 text-[#DC2626]'
               }`}
             >
               <span
-                className={`w-2.5 h-2.5 rounded-full ${
+                className={`w-2 h-2 rounded-full ${
                   estadoMaquina === 'OperandoOnline'
-                    ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]'
+                    ? 'bg-[#4E8C22]'
                     : estadoMaquina === 'Sincronizando'
-                      ? 'bg-amber-400 shadow-[0_0_8px_#fbbf24]'
-                      : 'bg-red-500 shadow-[0_0_8px_#ef4444]'
+                      ? 'bg-[#D97706]'
+                      : 'bg-[#DC2626]'
                 }`}
               />
               <span>
-                Estado: {estadoMaquina}
-                {subEstadoOffline ? ` · ${subEstadoOffline}` : ''}
+                {estadoMaquina === 'OperandoOnline'
+                  ? 'Online · Sincronizado'
+                  : estadoMaquina === 'Sincronizando'
+                    ? 'Sincronizando Lote...'
+                    : `Modo Offline · ${outboxPendentes} na fila`}
               </span>
-              {outboxPendentes > 0 && (
-                <span className="ml-1 px-1.5 py-0.5 rounded bg-black/40 font-mono text-[11px]">
-                  Outbox: {outboxPendentes}
+              {modoAvaliador && (
+                <span className="font-mono text-[10px] opacity-80">
+                  [{estadoMaquina}{subEstadoOffline ? `/${subEstadoOffline}` : ''}]
                 </span>
               )}
             </div>
 
-            {/* Status do Caixa + Saldo Local */}
-            <div className="px-3.5 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs flex items-center gap-2">
+            {/* Status do Caixa Clicável */}
+            <button
+              type="button"
+              onClick={() => setAbaAtiva('VENDAS_CAIXA')}
+              className="px-3 py-1.5 rounded-full bg-[#FAF6EE] hover:bg-[#F2E9D8] border border-[#E6DEC8] text-xs font-bold text-[#23201E] flex items-center gap-2 transition cursor-pointer"
+              title="Clique para gerenciar o turno ou fechar o caixa"
+            >
               <span
-                className={`px-2 py-0.5 rounded font-bold text-[10px] ${
-                  sistema.caixa.isAberto()
-                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                    : 'bg-red-500/20 text-red-300 border border-red-500/40'
+                className={`w-2 h-2 rounded-full ${
+                  sistema.caixa.isAberto() ? 'bg-[#4E8C22]' : 'bg-[#DC2626]'
                 }`}
-              >
-                CAIXA {sistema.caixa.isAberto() ? 'ABERTO' : 'FECHADO'}
-              </span>
-              <span className="text-slate-400">Saldo Local:</span>
-              <span className="font-mono font-bold text-emerald-300">
+              />
+              <span>Caixa {sistema.caixa.isAberto() ? 'Aberto' : 'Fechado'}</span>
+              <span className="text-[#968B82]">·</span>
+              <span className="font-mono font-extrabold text-[#4E8C22]">
                 {formatarBRL(sistema.caixa.getSaldoLocalCentavos())}
               </span>
-            </div>
+            </button>
+          </div>
 
-            {/* Perfil Logado + Simulador de Inatividade 30min + Trocar Usuário */}
-            <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs">
-              <span className="text-slate-300 font-semibold">{usuarioLogado.getNome()}</span>
+          {/* Direita: Impressora Térmica + Toggle Modo Avaliador UNIFEI + Perfil */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Botão da Gaveta da Impressora Térmica */}
+            <button
+              type="button"
+              onClick={() => setGavetaImpressoraAberta((v) => !v)}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 border transition cursor-pointer ${
+                !sistema.impressora.possuiPapel()
+                  ? 'bg-red-50 border-[#DC2626] text-[#DC2626] animate-pulse'
+                  : gavetaImpressoraAberta || gavetaImpressoraFixada
+                    ? 'bg-[#1E1B18] text-[#F7F3EB] border-[#1E1B18]'
+                    : 'bg-[#FAF6EE] hover:bg-[#F2E9D8] text-[#23201E] border-[#E6DEC8]'
+              }`}
+            >
+              <IconPrinter size={15} />
+              <span>
+                Impressora ({sistema.impressora.possuiPapel() ? 'OK' : 'Sem Papel'})
+              </span>
+              {historicoImpressoes.length > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full bg-[#E86F2C] text-white font-mono text-[10px]">
+                  {historicoImpressoes.length}
+                </span>
+              )}
+            </button>
+
+            {/* Chave Modo Avaliador UNIFEI (ON/OFF) */}
+            <button
+              type="button"
+              onClick={() => setModoAvaliador((v) => !v)}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 border transition cursor-pointer ${
+                modoAvaliador
+                  ? 'bg-[#FFF0E6] border-[#E86F2C] text-[#C85212]'
+                  : 'bg-[#FAF6EE] hover:bg-[#F2E9D8] border-[#E6DEC8] text-[#6E655F]'
+              }`}
+              title="Exibe ou oculta as siglas de requisitos acadêmicos (RF, RNF, RN e Casos de Teste CT01-CT14)"
+            >
+              <IconGraduation size={15} />
+              <span>Modo Avaliador UNIFEI: {modoAvaliador ? 'ON' : 'OFF'}</span>
+            </button>
+
+            {/* Perfil do Usuário + Inatividade + Sair */}
+            <div className="flex items-center gap-1.5 pl-2 border-l border-[#E6DEC8]">
               <span
-                className={`px-2 py-0.5 rounded font-bold text-[10px] ${
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-extrabold ${
                   usuarioLogado.getPapel() === 'GERENTE'
-                    ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
-                    : 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
+                    ? 'bg-[#EEF7E6] text-[#3E7319]'
+                    : 'bg-[#F2E9D8] text-[#23201E]'
                 }`}
               >
-                {usuarioLogado.getPapel()}
+                {usuarioLogado.getNome()} ({usuarioLogado.getPapel()})
               </span>
+
               <button
+                type="button"
                 onClick={handleSimularInatividade30Min}
-                title="Avança o relógio injetável em 31 minutos para testar o bloqueio automático RNF05.3 / CT04"
-                className="ml-1 px-2 py-1 rounded bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 font-semibold text-[11px] cursor-pointer"
+                title="Simular 30 minutos de inatividade (Bloqueio automático da sessão)"
+                className="p-1.5 rounded-lg bg-[#FAF6EE] hover:bg-amber-100 border border-[#E6DEC8] text-[#6E655F] hover:text-amber-900 transition cursor-pointer"
               >
-                ⏱ Simular 30min Inativo
+                <IconClock size={15} />
               </button>
+
               <button
+                type="button"
                 onClick={() => {
                   sistema.logout();
                   atualizarTela();
                 }}
-                className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-[11px] cursor-pointer"
+                title="Trocar operador ou sair do terminal"
+                className="px-2.5 py-1.5 rounded-lg bg-[#FAF6EE] hover:bg-red-50 border border-[#E6DEC8] text-xs font-bold text-[#6E655F] hover:text-[#DC2626] flex items-center gap-1 transition cursor-pointer"
               >
-                Sair
+                <IconLogout size={14} />
+                <span>Sair</span>
               </button>
             </div>
           </div>
-        </div>
+        </header>
 
-        {/* Barra de Abas Principais */}
-        <div className="max-w-[1600px] mx-auto mt-3 flex flex-wrap gap-2">
-          {(
-            [
-              { id: 'PDV', rotulo: '1. Frente de Caixa (PDV Offline-First)', badge: `${carrinho.getQuantidadeItens()} no carrinho` },
-              {
-                id: 'DELIVERY',
-                rotulo: '2. Hub Central de Delivery (iFood & Aiqfome)',
-                badge: `${pedidosDelivery.filter((p) => p.getStatus() === 'RECEBIDO' || p.getStatus() === 'PENDENTE_IMPRESSAO').length} ativo(s)`,
-              },
-              {
-                id: 'VENDAS_CAIXA',
-                rotulo: '3. Histórico de Vendas, Estornos (RBAC) & Caixa',
-                badge: `${vendas.length} venda(s)`,
-              },
-              {
-                id: 'INSPETOR',
-                rotulo: '4. Inspetor Arquitetural (Outbox SQLite ↔ PostgreSQL, Logs & LGPD)',
-                badge: `${outboxPendentes} pendente(s)`,
-              },
-            ] as const
-          ).map((aba) => (
-            <button
-              key={aba.id}
-              onClick={() => setAbaAtiva(aba.id)}
-              className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition cursor-pointer ${
-                abaAtiva === aba.id
-                  ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
-                  : 'bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800'
-              }`}
-            >
-              <span>{aba.rotulo}</span>
-              <span
-                className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
-                  abaAtiva === aba.id ? 'bg-slate-950 text-emerald-300' : 'bg-slate-800 text-slate-300'
-                }`}
-              >
-                {aba.badge}
-              </span>
-            </button>
-          ))}
-        </div>
-      </header>
-
-      {/* ───────────────────────── CORPO PRINCIPAL + BOBINA 80MM LATERAL ───────────────────────── */}
-      <main className="max-w-[1600px] w-full mx-auto px-6 py-5 grid grid-cols-1 xl:grid-cols-12 gap-6 flex-1">
-        {/* Área das Abas (8 colunas no desktop) */}
-        <section className="xl:col-span-8 space-y-5">
-          {/* ═══════════════════ ABA 1: FRENTE DE CAIXA (PDV) ═══════════════════ */}
+        {/* WORKSPACE PRINCIPAL */}
+        <main
+          className={`flex-1 p-4 lg:p-6 max-w-[1600px] w-full mx-auto transition-all ${
+            gavetaImpressoraFixada ? 'xl:pr-[390px]' : ''
+          }`}
+        >
           {abaAtiva === 'PDV' && (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-              {/* Catálogo de Produtos (7 col) */}
-              <div className="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col">
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                  <div>
-                    <h2 className="text-sm font-bold text-white">Catálogo Gastronômico Basílico</h2>
-                    <p className="text-xs text-slate-400">
-                      Valores calculados em centavos inteiros (RF01 / CT01)
-                    </p>
-                  </div>
-                  <button
-                    onClick={abrirModalNovoProduto}
-                    className="px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-bold cursor-pointer"
-                  >
-                    + Novo Produto (CRUD)
-                  </button>
-                </div>
-
-                {/* Filtro por Categoria */}
-                <div className="flex flex-wrap gap-1.5 mb-4">
-                  <button
-                    onClick={() => setCategoriaFiltro('TODAS')}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold cursor-pointer ${
-                      categoriaFiltro === 'TODAS'
-                        ? 'bg-emerald-500 text-slate-950'
-                        : 'bg-slate-950 text-slate-300 border border-slate-800'
-                    }`}
-                  >
-                    Todas
-                  </button>
-                  {CATEGORIAS_PRODUTO.map((cat) => (
-                    <button
-                      key={cat}
-                      onClick={() => setCategoriaFiltro(cat)}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold cursor-pointer ${
-                        categoriaFiltro === cat
-                          ? 'bg-emerald-500 text-slate-950'
-                          : 'bg-slate-950 text-slate-300 border border-slate-800'
-                      }`}
-                    >
-                      {cat}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Grid de Pratos */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[540px] overflow-y-auto pr-1">
-                  {produtos.map((p) => (
-                    <div
-                      key={p.id}
-                      className="bg-slate-950 border border-slate-800 hover:border-emerald-500/50 rounded-xl p-3.5 flex flex-col justify-between transition"
-                    >
-                      <div>
-                        <div className="flex items-start justify-between gap-2">
-                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-800 text-emerald-300">
-                            {p.categoria}
-                          </span>
-                          <button
-                            onClick={() => abrirModalEditarProduto(p)}
-                            className="text-[11px] text-slate-400 hover:text-emerald-300 underline cursor-pointer"
-                          >
-                            Editar
-                          </button>
-                        </div>
-                        <h3 className="text-sm font-bold text-white mt-1.5">{p.nome}</h3>
-                        <p className="text-xs text-slate-400 mt-1 line-clamp-2">{p.descricao}</p>
-                      </div>
-                      <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between">
-                        <span className="font-mono font-extrabold text-sm text-emerald-300">
-                          {formatarBRL(p.precoCentavos)}
-                        </span>
-                        <button
-                          onClick={() => void handleAdicionarCarrinho(p.id)}
-                          className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs cursor-pointer"
-                        >
-                          + Adicionar
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Carrinho Persistente WAL (5 col) */}
-              <div className="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-3">
-                    <div>
-                      <h2 className="text-sm font-bold text-white">Carrinho Persistente (WAL)</h2>
-                      <p className="text-[11px] text-emerald-400">
-                        RPO = 0 · Sobrevive a queda elétrica / F5 (CT12)
-                      </p>
-                    </div>
-                    {!carrinho.estaVazio() && (
-                      <button
-                        onClick={() => void sistema.limparCarrinho().then(atualizarTela)}
-                        className="text-xs text-red-400 hover:text-red-300 font-semibold cursor-pointer"
-                      >
-                        Limpar
-                      </button>
-                    )}
-                  </div>
-
-                  {carrinho.estaVazio() ? (
-                    <div className="py-12 text-center text-xs text-slate-500 border border-dashed border-slate-800 rounded-xl">
-                      Selecione pratos ou bebidas ao lado para iniciar a venda.
-                    </div>
-                  ) : (
-                    <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                      {carrinho.getItens().map((item) => (
-                        <div
-                          key={item.getIdProduto()}
-                          className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 flex items-center justify-between gap-2 text-xs"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <div className="font-bold text-white truncate">{item.getNomeProduto()}</div>
-                            <div className="text-slate-400 font-mono">
-                              {item.getQuantidade()} x {formatarBRL(item.getPrecoUnitarioCentavos())}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              onClick={() =>
-                                void sistema
-                                  .alterarQuantidadeCarrinho(item.getIdProduto(), item.getQuantidade() - 1)
-                                  .then(atualizarTela)
-                              }
-                              className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 font-bold cursor-pointer"
-                            >
-                              -
-                            </button>
-                            <span className="w-6 text-center font-mono font-bold">{item.getQuantidade()}</span>
-                            <button
-                              onClick={() =>
-                                void sistema
-                                  .alterarQuantidadeCarrinho(item.getIdProduto(), item.getQuantidade() + 1)
-                                  .then(atualizarTela)
-                              }
-                              className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 font-bold cursor-pointer"
-                            >
-                              +
-                            </button>
-                            <span className="w-20 text-right font-mono font-bold text-emerald-300">
-                              {formatarBRL(item.getSubtotalCentavos())}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Fechamento da Venda */}
-                <div className="mt-4 pt-3 border-t border-slate-800 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <label className="text-xs text-slate-300 font-semibold whitespace-nowrap">
-                      Desconto (R$):
-                    </label>
-                    <input
-                      type="text"
-                      value={descontoInputReais}
-                      onChange={(e) => setDescontoInputReais(e.target.value)}
-                      className="flex-1 px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs font-mono text-white"
-                      placeholder="0,00"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => void handleAplicarDesconto()}
-                      className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-emerald-300 cursor-pointer"
-                    >
-                      Aplicar
-                    </button>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs text-slate-300 font-semibold mb-1.5">
-                      Método de Pagamento:
-                    </label>
-                    <div className="grid grid-cols-4 gap-1.5">
-                      {METODOS_PAGAMENTO.map((m) => (
-                        <button
-                          key={m}
-                          type="button"
-                          onClick={() => setMetodoSelecionado(m)}
-                          className={`py-2 rounded-lg text-xs font-bold border transition cursor-pointer ${
-                            metodoSelecionado === m
-                              ? 'bg-emerald-500 text-slate-950 border-emerald-400'
-                              : 'bg-slate-950 text-slate-300 border-slate-800 hover:border-slate-700'
-                          }`}
-                        >
-                          {m}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-1 text-xs">
-                    <div className="flex justify-between text-slate-400">
-                      <span>Subtotal ({carrinho.getQuantidadeItens()} itens):</span>
-                      <span className="font-mono">{formatarBRL(carrinho.getSubtotalCentavos())}</span>
-                    </div>
-                    <div className="flex justify-between text-amber-300">
-                      <span>Desconto:</span>
-                      <span className="font-mono">-{formatarBRL(carrinho.getDescontoCentavos())}</span>
-                    </div>
-                    <div className="flex justify-between text-base font-extrabold text-emerald-300 pt-1 border-t border-slate-800">
-                      <span>TOTAL A PAGAR:</span>
-                      <span className="font-mono">{formatarBRL(carrinho.getTotalCentavos())}</span>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    disabled={carrinho.estaVazio() || !sistema.caixa.isAberto()}
-                    onClick={() => void handleFinalizarVenda()}
-                    className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-800 disabled:text-slate-500 text-slate-950 font-extrabold text-sm shadow-lg shadow-emerald-500/20 transition cursor-pointer"
-                  >
-                    {sistema.caixa.isAberto()
-                      ? `Finalizar Venda (${metodoSelecionado}) & Imprimir Cupom`
-                      : 'Caixa Fechado — Abra o Caixa na Aba 3'}
-                  </button>
-                </div>
-              </div>
-            </div>
+            <PosView
+              produtos={todosProdutos}
+              carrinho={carrinho}
+              caixaAberto={sistema.caixa.isAberto()}
+              modoAvaliador={modoAvaliador}
+              categoriaFiltro={categoriaFiltro}
+              onChangeCategoria={setCategoriaFiltro}
+              metodoSelecionado={metodoSelecionado}
+              onChangeMetodo={setMetodoSelecionado}
+              descontoInputReais={descontoInputReais}
+              onChangeDescontoInput={setDescontoInputReais}
+              onAplicarDesconto={() => void handleAplicarDesconto()}
+              onAdicionarCarrinho={(id) => void handleAdicionarCarrinho(id)}
+              onAlterarQuantidadeCarrinho={(id, qtd) => void handleAlterarQuantidadeCarrinho(id, qtd)}
+              onLimparCarrinho={() => void sistema.limparCarrinho().then(atualizarTela)}
+              onFinalizarVenda={() => void handleFinalizarVenda()}
+              onAbrirModalNovoProduto={abrirModalNovoProduto}
+              onAbrirModalEditarProduto={abrirModalEditarProduto}
+              onExcluirProduto={(p) => void handleExcluirProduto(p)}
+              onIrParaCaixa={() => setAbaAtiva('VENDAS_CAIXA')}
+            />
           )}
 
-          {/* ═══════════════════ ABA 2: HUB CENTRAL DE DELIVERY ═══════════════════ */}
           {abaAtiva === 'DELIVERY' && (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
-                <div>
-                  <h2 className="text-base font-bold text-white">
-                    Hub Central de Delivery — iFood &amp; Aiqfome (RF03 / RF04 / RN03)
-                  </h2>
-                  <p className="text-xs text-slate-400">
-                    O pedido só assume <code className="text-emerald-300">EM_PREPARO</code> após confirmação física da
-                    impressora térmica 80mm. Sem bobina → retido em{' '}
-                    <code className="text-amber-300">PENDENTE_IMPRESSAO</code>.
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 font-mono">
-                    TLS: <strong className="text-emerald-400">{sistema.ifoodAdapter.getVersaoTls()}</strong>
-                  </span>
-                  <span className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 font-mono">
-                    OAuth Renovações: <strong>{sistema.ifoodAdapter.getTokenOAuth().renovacoes}</strong>
-                  </span>
-                </div>
-              </div>
-
-              {filaReimpressao.length > 0 && (
-                <div className="p-3.5 rounded-xl bg-amber-950/80 border border-amber-500/70 text-amber-100 text-xs flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <strong className="text-amber-300">
-                      RN03 — Fila de Reimpressão Ativa ({filaReimpressao.length} pedido(s) retido(s)):
-                    </strong>{' '}
-                    Verifique se a bobina de 80mm está carregada no Painel de Caos abaixo e clique em{' '}
-                    <strong>Reimprimir Via na Cozinha</strong>.
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {pedidosDelivery.map((ped) => {
-                  const status = ped.getStatus();
-                  return (
-                    <div
-                      key={ped.getIdInterno()}
-                      className={`bg-slate-950 border rounded-xl p-4 flex flex-col justify-between ${
-                        status === 'PENDENTE_IMPRESSAO'
-                          ? 'border-amber-500'
-                          : status === 'RECEBIDO'
-                            ? 'border-emerald-500/60'
-                            : 'border-slate-800'
-                      }`}
-                    >
-                      <div>
-                        <div className="flex items-center justify-between gap-2">
-                          <span
-                            className={`px-2.5 py-0.5 rounded font-black text-[11px] ${
-                              ped.getPlataforma() === 'IFOOD'
-                                ? 'bg-red-500/20 text-red-300 border border-red-500/40'
-                                : 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
-                            }`}
-                          >
-                            {ped.getPlataforma()} #{ped.getCodigoExterno()}
-                          </span>
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                              status === 'RECEBIDO'
-                                ? 'bg-sky-500/20 text-sky-300'
-                                : status === 'PENDENTE_IMPRESSAO'
-                                  ? 'bg-amber-500/25 text-amber-200 animate-pulse'
-                                  : status === 'EM_PREPARO'
-                                    ? 'bg-emerald-500/20 text-emerald-300'
-                                    : status === 'CONCLUIDO'
-                                      ? 'bg-slate-800 text-slate-300'
-                                      : 'bg-red-950 text-red-300'
-                            }`}
-                          >
-                            {status}
-                          </span>
-                        </div>
-
-                        <div className="mt-2.5 text-xs space-y-0.5">
-                          <div className="font-bold text-white flex items-center gap-2">
-                            <span>{ped.getClienteNome()}</span>
-                            {ped.isAnonimizadoLgpd() && (
-                              <span className="px-1.5 py-0.5 rounded bg-purple-950 border border-purple-500/50 text-[10px] text-purple-200">
-                                LGPD RE01
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-slate-400">{ped.getClienteTelefone()}</div>
-                          <div className="text-slate-400 truncate">{ped.getClienteEndereco()}</div>
-                        </div>
-
-                        <div className="mt-3 pt-2 border-t border-slate-800/80 space-y-1 text-xs">
-                          {ped.getItens().map((i, idx) => (
-                            <div key={idx} className="flex justify-between text-slate-300">
-                              <span>
-                                {i.getQuantidade()}x {i.getNomeProduto()}
-                              </span>
-                              <span className="font-mono">{formatarBRL(i.getSubtotalCentavos())}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="mt-4 pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2">
-                        <span className="font-mono font-extrabold text-sm text-emerald-300">
-                          {formatarBRL(ped.getValorTotalCentavos())}
-                        </span>
-
-                        <div className="flex flex-wrap gap-1.5">
-                          {status === 'RECEBIDO' && (
-                            <>
-                              <button
-                                onClick={() => handleAceitarDelivery(ped.getIdInterno())}
-                                className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs cursor-pointer"
-                              >
-                                Aceitar &amp; Imprimir na Cozinha
-                              </button>
-                              <button
-                                onClick={() => setPedidoAlvoRecusa(ped.getIdInterno())}
-                                className="px-2.5 py-1.5 rounded-lg bg-red-950 hover:bg-red-900 border border-red-500/50 text-red-200 font-semibold text-xs cursor-pointer"
-                              >
-                                Recusar
-                              </button>
-                            </>
-                          )}
-
-                          {status === 'PENDENTE_IMPRESSAO' && (
-                            <button
-                              onClick={() => handleReimprimirDelivery(ped.getIdInterno())}
-                              className="px-3 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold text-xs cursor-pointer"
-                            >
-                              🖨 Reimprimir Via na Cozinha (RN03)
-                            </button>
-                          )}
-
-                          {status === 'EM_PREPARO' && (
-                            <button
-                              onClick={() => {
-                                sistema.concluirPedidoDelivery(ped.getIdInterno());
-                                adicionarToast('SUCESSO', 'Pedido Concluído', `Pedido #${ped.getCodigoExterno()} entregue.`);
-                                atualizarTela();
-                              }}
-                              className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-300 font-bold text-xs cursor-pointer"
-                            >
-                              Marcar Concluído
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+            <DeliveryHubView
+              pedidos={pedidosDelivery}
+              filaReimpressao={filaReimpressao}
+              possuiPapel={sistema.impressora.possuiPapel()}
+              versaoTls={sistema.ifoodAdapter.getVersaoTls()}
+              renovacoesOAuth={sistema.ifoodAdapter.getTokenOAuth().renovacoes}
+              modoAvaliador={modoAvaliador}
+              onAceitarPedido={handleAceitarDelivery}
+              onReimprimirPedido={handleReimprimirDelivery}
+              onAbrirModalRecusa={(id) => setPedidoAlvoRecusa(id)}
+              onConcluirPedido={(id) => {
+                const ped = sistema.concluirPedidoDelivery(id);
+                adicionarToast('SUCESSO', 'Entrega Concluída', `Pedido #${ped.getCodigoExterno()} finalizado.`);
+                atualizarTela();
+              }}
+              onInjetarPedido={handleInjetarPedido}
+              onToggleBobina={handleToggleBobina}
+            />
           )}
 
-          {/* ═══════════════════ ABA 3: HISTÓRICO DE VENDAS, ESTORNOS (RBAC) & CAIXA ═══════════════════ */}
           {abaAtiva === 'VENDAS_CAIXA' && (
-            <div className="space-y-5">
-              {/* Controle de Turno do Caixa (RN04) */}
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div>
-                    <h2 className="text-base font-bold text-white">Gestão de Turno do Caixa (RN04)</h2>
-                    <p className="text-xs text-slate-400">
-                      Se o caixa for fechado offline com itens pendentes na Outbox, o sistema emite alerta de pendência
-                      e preserva a fila para o próximo ciclo online (CT11).
-                    </p>
-                  </div>
-
-                  {sistema.caixa.isAberto() ? (
-                    <button
-                      onClick={handleFecharCaixa}
-                      className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs cursor-pointer"
-                    >
-                      Fechar Caixa Agora ({outboxPendentes} pendente(s) na Outbox)
-                    </button>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        value={saldoAberturaReais}
-                        onChange={(e) => setSaldoAberturaReais(e.target.value)}
-                        className="w-28 px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-xs font-mono"
-                        placeholder="250,00"
-                      />
-                      <button
-                        onClick={handleAbrirCaixa}
-                        className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs cursor-pointer"
-                      >
-                        Abrir Caixa (R$)
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {ultimoFechamento && (
-                  <div
-                    className={`mt-4 p-4 rounded-xl border text-xs ${
-                      ultimoFechamento.alertaPendencia
-                        ? 'bg-amber-950/70 border-amber-500 text-amber-100'
-                        : 'bg-slate-950 border-slate-800 text-slate-200'
-                    }`}
-                  >
-                    <div className="flex flex-wrap justify-between gap-2 font-bold text-sm mb-2">
-                      <span>
-                        Relatório de Fechamento #{ultimoFechamento.idFechamento.slice(0, 8)} ({ultimoFechamento.modo})
-                      </span>
-                      <span className="font-mono text-emerald-300">
-                        Saldo Final: {formatarBRL(ultimoFechamento.saldoFinalCentavos)}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-slate-300">
-                      <div>Vendas Brutas: {formatarBRL(ultimoFechamento.totalVendasBrutoCentavos)}</div>
-                      <div>Estornos: {formatarBRL(ultimoFechamento.totalEstornosCentavos)}</div>
-                      <div>Qtd. Vendas: {ultimoFechamento.quantidadeVendas}</div>
-                      <div>Pendências Outbox: {ultimoFechamento.pendenciasOutbox}</div>
-                    </div>
-                    {ultimoFechamento.ressalvas.length > 0 && (
-                      <ul className="mt-2 pt-2 border-t border-amber-500/40 list-disc list-inside text-amber-200 space-y-1">
-                        {ultimoFechamento.ressalvas.map((r, i) => (
-                          <li key={i}>{r}</li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Lista de Vendas Presenciais & Estorno RBAC (RN02) */}
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-                <h3 className="text-sm font-bold text-white mb-1">
-                  Vendas Presenciais Registradas &amp; Estorno Exclusivo de Gerente (RN02 / CT02)
-                </h3>
-                <p className="text-xs text-slate-400 mb-4">
-                  O estorno exige credencial de <code className="text-purple-300">GERENTE</code>, nunca apaga a venda
-                  original e gera um <code className="text-emerald-300">EventoCompensatorio</code> imutável.
-                </p>
-
-                {vendas.length === 0 ? (
-                  <p className="text-xs text-slate-500 py-6 text-center border border-dashed border-slate-800 rounded-xl">
-                    Nenhuma venda presencial registrada ainda. Finalize uma venda na Aba 1.
-                  </p>
-                ) : (
-                  <div className="space-y-2.5">
-                    {vendas.map((v) => (
-                      <div
-                        key={v.getIdVenda()}
-                        className="bg-slate-950 border border-slate-800 rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs"
-                      >
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono font-bold text-white">
-                              Venda #{String(v.getNumeroSequencial()).padStart(4, '0')}
-                            </span>
-                            <span className="px-2 py-0.5 rounded bg-slate-800 font-mono text-[11px]">
-                              {v.getMetodoPagamento()}
-                            </span>
-                            <span
-                              className={`px-2 py-0.5 rounded font-bold text-[10px] ${
-                                v.isSincronizado()
-                                  ? 'bg-emerald-500/20 text-emerald-300'
-                                  : 'bg-amber-500/20 text-amber-300'
-                              }`}
-                            >
-                              {v.isSincronizado() ? 'SINCRONIZADA NUVEM' : 'FILA LOCAL (OUTBOX)'}
-                            </span>
-                            {v.isEstornada() && (
-                              <span className="px-2 py-0.5 rounded bg-red-500/25 border border-red-500/50 text-red-200 font-bold text-[10px]">
-                                ESTORNADA (RN02)
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-slate-400 mt-1 font-mono text-[11px]">
-                            UUID: {v.getIdVenda()} · {new Date(v.getDataHora()).toLocaleTimeString('pt-BR')}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                          <span className="font-mono font-extrabold text-sm text-emerald-300">
-                            {formatarBRL(v.getValorTotalCentavos())}
-                          </span>
-                          {!v.isEstornada() && (
-                            <button
-                              onClick={() => {
-                                setVendaAlvoEstorno(v.getIdVenda());
-                                setMotivoEstorno('Solicitação do cliente / erro de lançamento');
-                              }}
-                              className="px-3 py-1.5 rounded-lg bg-red-950 hover:bg-red-900 border border-red-500/50 text-red-200 font-bold text-xs cursor-pointer"
-                            >
-                              Solicitar Estorno (RN02)
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {eventosCompensatorios.length > 0 && (
-                  <div className="mt-5 pt-4 border-t border-slate-800">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-purple-300 mb-2">
-                      Eventos Compensatórios Gerados (RN02)
-                    </h4>
-                    <div className="space-y-2">
-                      {eventosCompensatorios.map((ev) => (
-                        <div
-                          key={ev.idEvento}
-                          className="p-3 rounded-xl bg-purple-950/30 border border-purple-500/40 text-xs flex flex-wrap justify-between gap-2"
-                        >
-                          <div>
-                            <span className="font-mono font-bold text-purple-200">
-                              Evento {ev.idEvento.slice(0, 8)}…
-                            </span>{' '}
-                            → Venda #{ev.numeroVendaOriginal} ({ev.idVendaOriginal.slice(0, 8)}…) · Motivo:{' '}
-                            <em>&ldquo;{ev.motivo}&rdquo;</em>
-                          </div>
-                          <div className="font-mono text-purple-200">
-                            -{formatarBRL(ev.valorEstornadoCentavos)} (Autorizado por: {ev.autorizadoPor})
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
+            <CashierHistoryView
+              caixaAberto={sistema.caixa.isAberto()}
+              saldoAtualCentavos={sistema.caixa.getSaldoLocalCentavos()}
+              saldoInicialCentavos={sistema.caixa.getSaldoInicialCentavos()}
+              operadorAbertura={sistema.caixa.getOperadorAbertura()}
+              outboxPendentes={outboxPendentes}
+              vendas={vendas}
+              eventosCompensatorios={eventosCompensatorios}
+              ultimoFechamento={ultimoFechamento}
+              saldoAberturaReais={saldoAberturaReais}
+              modoAvaliador={modoAvaliador}
+              onChangeSaldoAbertura={setSaldoAberturaReais}
+              onAbrirCaixa={handleAbrirCaixa}
+              onFecharCaixa={handleFecharCaixa}
+              onSolicitarEstorno={(idVenda) => {
+                setVendaAlvoEstorno(idVenda);
+                setMotivoEstorno('Solicitação do cliente / erro de lançamento');
+              }}
+            />
           )}
 
-          {/* ═══════════════════ ABA 4: INSPETOR ARQUITETURAL ═══════════════════ */}
           {abaAtiva === 'INSPETOR' && (
-            <div className="space-y-5">
-              {/* Visão Lado a Lado: Outbox SQLite <-> PostgreSQL Cloud */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {/* Coluna SQLite Local */}
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-sm font-bold text-emerald-300">
-                      SQLite Local · <code className="font-mono">outbox_events</code>
-                    </h3>
-                    <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-950 text-slate-300">
-                      WAL Seq #{statsSqlite.ultimoSeq}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-400 mb-2 font-mono break-all">
-                    Amostra AES-256-GCM: {statsSqlite.amostraCifradaHex || 'aguardando checkpoint'}
-                  </p>
-
-                  <div className="max-h-60 overflow-y-auto space-y-1.5 pr-1">
-                    {outboxEventos.length === 0 ? (
-                      <p className="text-xs text-slate-500 py-6 text-center">Nenhum evento na Outbox local.</p>
-                    ) : (
-                      outboxEventos.map((ev) => (
-                        <div
-                          key={ev.idEvento}
-                          className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 text-[11px] flex items-center justify-between gap-2"
-                        >
-                          <div className="min-w-0">
-                            <div className="font-mono font-bold text-white truncate">
-                              #{ev.seq} · {ev.tipo}
-                            </div>
-                            <div className="font-mono text-slate-400 truncate">UUID: {ev.idEvento}</div>
-                          </div>
-                          <span
-                            className={`px-2 py-0.5 rounded font-bold text-[10px] ${
-                              ev.status === 'SINCRONIZADO'
-                                ? 'bg-emerald-500/20 text-emerald-300'
-                                : ev.status === 'DEAD_LETTER'
-                                  ? 'bg-red-500/20 text-red-300'
-                                  : 'bg-amber-500/20 text-amber-300'
-                            }`}
-                          >
-                            {ev.status}
-                          </span>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-
-                {/* Coluna PostgreSQL Remoto */}
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-sm font-bold text-sky-300">
-                      PostgreSQL Nuvem · <code className="font-mono">cloud_transactions</code>
-                    </h3>
-                    <button
-                      onClick={() =>
-                        void sistema.syncWorker.reenviarUltimoLoteConfirmado().then((r) => {
-                          adicionarToast(
-                            'INFO',
-                            'Teste de Idempotência UUID v4 (RNF02.2 / CT08)',
-                            `Reenviados: ${r.enviados} | Inseridos: ${r.inseridos} | Duplicados descartados: ${r.duplicadosDescartados}`,
-                          );
-                          atualizarTela();
-                        })
-                      }
-                      className="px-2.5 py-1 rounded bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/40 text-sky-200 text-[11px] font-semibold cursor-pointer"
-                    >
-                      Reenviar Último Lote (Idempotência)
-                    </button>
-                  </div>
-                  <p className="text-[11px] text-slate-400 mb-2 font-mono">
-                    Total: {statsNuvem.totalTransacoes} · Rollbacks Atômicos: {statsNuvem.rollbacksRealizados} ·
-                    Duplicatas Descartadas: {statsNuvem.duplicatasDescartadasTotal}
-                  </p>
-
-                  <div className="max-h-60 overflow-y-auto space-y-1.5 pr-1">
-                    {transacoesNuvem.length === 0 ? (
-                      <p className="text-xs text-slate-500 py-6 text-center">
-                        Nenhuma transação sincronizada na nuvem ainda.
-                      </p>
-                    ) : (
-                      transacoesNuvem.map((t) => (
-                        <div
-                          key={t.idEvento}
-                          className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 text-[11px] flex items-center justify-between gap-2"
-                        >
-                          <div className="min-w-0">
-                            <div className="font-mono font-bold text-sky-200 truncate">
-                              Seq Origem #{t.seqOrigem} · {t.tipo}
-                            </div>
-                            <div className="font-mono text-slate-400 truncate">UUID: {t.idEvento}</div>
-                          </div>
-                          <span className="px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 font-mono text-[10px]">
-                            COMMITTED
-                          </span>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Rotina LGPD (RE01 / CT05) + Audit Logs Imutáveis */}
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
-                  <div>
-                    <h3 className="text-sm font-bold text-white">
-                      Governança LGPD (RE01 / CT05) &amp; <code className="font-mono">audit_logs</code> Imutáveis
-                    </h3>
-                    <p className="text-xs text-slate-400">
-                      Mascara nome, telefone e endereço de pedidos vencidos (&gt; 180 dias) preservando os totais
-                      fiscais.
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => {
-                      const rel = sistema.executarRotinaAnonimizacaoLgpd(180);
-                      adicionarToast(
-                        'SUCESSO',
-                        'Rotina LGPD (RE01) Executada',
-                        `Avaliados: ${rel.avaliados} | Anonimizados: ${rel.anonimizados} | Vigentes preservados: ${rel.preservadosPrazoVigente}.`,
-                      );
-                      atualizarTela();
-                    }}
-                    className="px-3.5 py-2 rounded-xl bg-purple-500 hover:bg-purple-400 text-slate-950 font-extrabold text-xs cursor-pointer"
-                  >
-                    🔒 Executar Anonimização LGPD (RE01)
-                  </button>
-                </div>
-
-                <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1">
-                  {auditLogs.map((log) => (
-                    <div
-                      key={log.id}
-                      className="p-2 rounded-lg bg-slate-950 border border-slate-800 text-[11px] font-mono flex flex-wrap items-center justify-between gap-2"
-                    >
-                      <div>
-                        <span className="text-emerald-400 font-bold">[{log.categoria}]</span>{' '}
-                        <span className="text-white font-semibold">{log.acao}</span> —{' '}
-                        <span className="text-slate-300">{log.detalhes}</span>
-                      </div>
-                      <div className="text-slate-500">
-                        {log.usuario} · {new Date(log.dataHora).toLocaleTimeString('pt-BR')}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            <ArchitectureInspectorView
+              estadoMaquina={estadoMaquina}
+              subEstadoOffline={subEstadoOffline}
+              outboxEventos={outboxEventos}
+              outboxPendentes={outboxPendentes}
+              transacoesNuvem={transacoesNuvem}
+              auditLogs={auditLogs}
+              statsSqlite={statsSqlite}
+              statsNuvem={statsNuvem}
+              modoAvaliador={modoAvaliador}
+              onReenviarUltimoLoteIdempotencia={() =>
+                void sistema.syncWorker.reenviarUltimoLoteConfirmado().then((r) => {
+                  adicionarToast(
+                    'INFO',
+                    'Teste de Idempotência Concluído',
+                    `Reenviados: ${r.enviados} | Inseridos: ${r.inseridos} | Duplicados descartados: ${r.duplicadosDescartados}`,
+                  );
+                  atualizarTela();
+                })
+              }
+              onExecutarAnonimizacaoLgpd={() => {
+                const rel = sistema.executarRotinaAnonimizacaoLgpd(180);
+                adicionarToast(
+                  'SUCESSO',
+                  'Rotina LGPD Executada',
+                  `Avaliados: ${rel.avaliados} | Anonimizados: ${rel.anonimizados} | Vigentes preservados: ${rel.preservadosPrazoVigente}.`,
+                );
+                atualizarTela();
+              }}
+            />
           )}
-        </section>
+        </main>
+      </div>
 
-        {/* ───────────────────────── COLUNA DIREITA: BOBINA TÉRMICA ESC/POS 80MM ───────────────────────── */}
-        <aside className="xl:col-span-4 space-y-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h2 className="text-sm font-bold text-white">Impressora Térmica ESC/POS (80mm)</h2>
-                <p className="text-[11px] text-slate-400">{sistema.impressora.descricao}</p>
-              </div>
-              <span
-                className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${
-                  sistema.impressora.possuiPapel()
-                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                    : 'bg-red-500/25 text-red-200 border border-red-500 animate-pulse'
-                }`}
-              >
-                {sistema.impressora.possuiPapel() ? 'BOBINA 80MM OK' : 'SEM PAPEL (ERRO 0x72)'}
-              </span>
-            </div>
+      {/* ───────────────────────── BOBINA TÉRMICA ESC/POS INTELIGENTE (DRAWER) ───────────────────────── */}
+      <ThermalPrinterDrawer
+        aberto={gavetaImpressoraAberta}
+        fixado={gavetaImpressoraFixada}
+        possuiPapel={sistema.impressora.possuiPapel()}
+        descricaoImpressora={sistema.impressora.descricao}
+        ultimaImpressao={ultimaImpressao}
+        historicoImpressoes={historicoImpressoes}
+        modoAvaliador={modoAvaliador}
+        onFechar={() => setGavetaImpressoraAberta(false)}
+        onToggleFixado={() => setGavetaImpressoraFixada((v) => !v)}
+        onToggleBobina={handleToggleBobina}
+      />
 
-            {/* Papel Térmico 80mm */}
-            <div className="thermal-paper rounded-xl p-4 text-xs leading-relaxed overflow-x-auto">
-              {ultimaImpressao ? (
-                <>
-                  <div className="flex justify-between text-[10px] text-stone-600 border-b border-stone-400/60 pb-1 mb-2">
-                    <span>
-                      JOB #{ultimaImpressao.idJob} · {ultimaImpressao.tipo}
-                    </span>
-                    <span>
-                      {ultimaImpressao.tempoMs}ms · {ultimaImpressao.bytesEscPos.byteLength} bytes
-                    </span>
-                  </div>
-                  <pre className="text-[11px] leading-snug whitespace-pre font-mono">
-                    {ultimaImpressao.linhasRenderizadas.join('\n')}
-                  </pre>
-                </>
-              ) : (
-                <div className="py-10 text-center text-stone-600 text-xs">
-                  Finalize uma venda presencial ou aceite um pedido de delivery para emitir o comprovante ESC/POS aqui.
-                </div>
-              )}
-            </div>
-
-            {/* Hex Dump dos Bytes ESC/POS */}
-            {ultimaImpressao && (
-              <div className="mt-3 p-2.5 rounded-xl bg-slate-950 border border-slate-800">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 mb-1">
-                  Stream Binário ESC/POS (0x1B 0x40 Init … 0x1D 0x56 Cut)
-                </div>
-                <div className="font-mono text-[10px] text-slate-400 break-all">{ultimaImpressao.hexDump}</div>
-              </div>
-            )}
-          </div>
-        </aside>
-      </main>
-
-      {/* ───────────────────────── PAINEL FIXO: LABORATÓRIO DE CAOS & SIMULAÇÃO (ECOT11A) ───────────────────────── */}
-      <section className="fixed bottom-0 inset-x-0 z-40 bg-slate-900/95 border-t-2 border-emerald-500/60 backdrop-blur-md px-6 py-3 shadow-2xl">
-        <div className="max-w-[1600px] mx-auto flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span className="px-2 py-1 rounded bg-emerald-500 text-slate-950 font-black text-[11px] uppercase">
-              Laboratório de Caos &amp; Simulação (ECOT11A)
-            </span>
-            <span className="text-xs text-slate-400 hidden sm:inline">
-              Injete falhas de rede, falta de bobina e corte de lote em tempo real:
-            </span>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {/* 1. Toggle Rede WAN */}
-            <button
-              onClick={() => void handleToggleWan()}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer ${
-                sistema.isRedeWanOnline()
-                  ? 'bg-emerald-950 border-emerald-500/60 text-emerald-300 hover:bg-emerald-900'
-                  : 'bg-red-950 border-red-500 text-red-200 hover:bg-red-900'
-              }`}
-            >
-              🌐 Rede WAN: {sistema.isRedeWanOnline() ? 'Online' : 'Offline (Queda de Internet)'}
-            </button>
-
-            {/* 2. Toggle Impressora Térmica 9100 */}
-            <button
-              onClick={handleToggleBobina}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer ${
-                sistema.impressora.possuiPapel()
-                  ? 'bg-emerald-950 border-emerald-500/60 text-emerald-300 hover:bg-emerald-900'
-                  : 'bg-amber-950 border-amber-500 text-amber-200 hover:bg-amber-900'
-              }`}
-            >
-              🖨 Impressora 9100:{' '}
-              {sistema.impressora.possuiPapel() ? 'Com Bobina (OK)' : 'Sem Bobina de Papel (Erro ESC/POS)'}
-            </button>
-
-            {/* 3. Toggle Falha Toxiproxy */}
-            <button
-              onClick={handleToggleToxiproxy}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer ${
-                !sistema.nuvem.isCorteMeioDoLoteAtivo()
-                  ? 'bg-slate-950 border-slate-700 text-slate-200 hover:bg-slate-800'
-                  : 'bg-red-950 border-red-500 text-red-200 hover:bg-red-900'
-              }`}
-            >
-              ☁️ Nuvem:{' '}
-              {!sistema.nuvem.isCorteMeioDoLoteAtivo()
-                ? 'Servidor Saudável'
-                : 'Cortar Rede no Meio do Lote (Rollback CT13)'}
-            </button>
-
-            {/* 4. Botões de Injeção */}
-            <button
-              onClick={() => handleInjetarPedido('IFOOD', false)}
-              className="px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 text-red-200 text-xs font-bold cursor-pointer"
-            >
-              + Receber Pedido iFood
-            </button>
-
-            <button
-              onClick={() => handleInjetarPedido('AIQFOME', false)}
-              className="px-3 py-1.5 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/50 text-purple-200 text-xs font-bold cursor-pointer"
-            >
-              + Receber Pedido Aiqfome
-            </button>
-
-            <button
-              onClick={() => handleInjetarPedido('IFOOD', true)}
-              className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold cursor-pointer"
-            >
-              + Injetar Pedido Duplicado (Idempotência)
-            </button>
-
-            <button
-              onClick={() => void handleSimularQuedaEletrica()}
-              className="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-200 text-xs font-bold cursor-pointer"
-            >
-              ⚡ Simular Queda Elétrica (Reload RPO=0)
-            </button>
-          </div>
-        </div>
-      </section>
+      {/* ───────────────────────── GAVETA RETRÁTIL DE CAOS & SIMULAÇÃO ───────────────────────── */}
+      <ChaosSimulatorDock
+        wanOnline={sistema.isRedeWanOnline()}
+        possuiPapel={sistema.impressora.possuiPapel()}
+        corteToxiproxyAtivo={sistema.nuvem.isCorteMeioDoLoteAtivo()}
+        onToggleWan={() => void handleToggleWan()}
+        onToggleBobina={handleToggleBobina}
+        onToggleToxiproxy={handleToggleToxiproxy}
+        onInjetarPedido={handleInjetarPedido}
+        onSimularQuedaEletrica={() => void handleSimularQuedaEletrica()}
+        onResetarBancoDemo={handleResetarBancoDemo}
+      />
 
       {/* ───────────────────────── MODAL: CRUD DE PRODUTO ───────────────────────── */}
       {modalProdutoAberto && (
-        <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-6">
-            <h3 className="text-base font-bold text-white mb-4">
-              {produtoEditando ? `Editar Produto #${produtoEditando.id}` : 'Novo Produto no Catálogo'}
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="basilico-card rounded-2xl max-w-md w-full p-6 bg-white">
+            <h3 className="font-display text-xl font-bold text-[#23201E] mb-4">
+              {produtoEditando ? `Editar Prato #${produtoEditando.id}` : 'Cadastrar Novo Prato'}
             </h3>
-            <form onSubmit={handleSalvarProduto} className="space-y-3 text-xs">
+            <form onSubmit={handleSalvarProduto} className="space-y-3.5 text-xs">
               <div>
-                <label className="block font-semibold text-slate-300 mb-1">Nome do Prato / Bebida</label>
+                <label className="block font-bold text-[#23201E] mb-1">Nome do Prato ou Bebida</label>
                 <input
                   type="text"
                   value={prodNome}
                   onChange={(e) => setProdNome(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-white"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#FAF6EE] border border-[#E6DEC8] text-[#23201E] font-medium focus:outline-none focus:border-[#E86F2C]"
+                  placeholder="Ex.: Ravioli di Zucca al Burro e Salvia"
                   required
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-300 mb-1">Descrição</label>
+                <label className="block font-bold text-[#23201E] mb-1">Descrição Gastronômica</label>
                 <textarea
                   value={prodDescricao}
                   onChange={(e) => setProdDescricao(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-white"
+                  className="w-full px-3.5 py-2 rounded-xl bg-[#FAF6EE] border border-[#E6DEC8] text-[#23201E] focus:outline-none focus:border-[#E86F2C]"
                   rows={2}
+                  placeholder="Ingredientes principais e modo de preparo..."
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-300 mb-1">Categoria</label>
+                  <label className="block font-bold text-[#23201E] mb-1">Categoria</label>
                   <select
                     value={prodCategoria}
                     onChange={(e) => setProdCategoria(e.target.value as CategoriaProduto)}
-                    className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-white"
+                    className="w-full px-3 py-2.5 rounded-xl bg-[#FAF6EE] border border-[#E6DEC8] text-[#23201E] font-semibold"
                   >
                     {CATEGORIAS_PRODUTO.map((c) => (
                       <option key={c} value={c}>
@@ -1713,29 +1088,29 @@ export function App(): React.ReactElement {
                   </select>
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-300 mb-1">Preço (R$)</label>
+                  <label className="block font-bold text-[#23201E] mb-1">Preço de Venda (R$)</label>
                   <input
                     type="text"
                     value={prodPrecoReais}
                     onChange={(e) => setProdPrecoReais(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#FAF6EE] border border-[#E6DEC8] text-[#23201E] font-mono font-bold"
                     required
                   />
                 </div>
               </div>
-              <div className="flex justify-end gap-2 pt-3">
+              <div className="flex justify-end gap-2 pt-3 border-t border-[#F2E9D8]">
                 <button
                   type="button"
                   onClick={() => setModalProdutoAberto(false)}
-                  className="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 font-semibold cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-[#F2E9D8] hover:bg-[#E6DEC8] text-[#23201E] font-bold cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-lg bg-emerald-500 text-slate-950 font-bold cursor-pointer"
+                  className="px-5 py-2 rounded-xl bg-[#E86F2C] hover:bg-[#D45D1B] text-white font-bold shadow-sm cursor-pointer"
                 >
-                  Salvar Produto
+                  Salvar no Cardápio
                 </button>
               </div>
             </form>
@@ -1745,62 +1120,66 @@ export function App(): React.ReactElement {
 
       {/* ───────────────────────── MODAL: AUTORIZAR ESTORNO RBAC (RN02) ───────────────────────── */}
       {vendaAlvoEstorno && (
-        <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-red-500/60 rounded-2xl max-w-md w-full p-6">
-            <h3 className="text-base font-bold text-white">Autorização de Estorno (RN02 / RBAC)</h3>
-            <p className="text-xs text-slate-400 mt-1 mb-4">
-              A venda original não será apagada. Um <code className="text-emerald-300">EventoCompensatorio</code> e um
-              registro em <code className="text-emerald-300">audit_logs</code> imutável serão gravados.
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="basilico-card rounded-2xl max-w-md w-full p-6 bg-white border-t-4 border-t-[#DC2626]">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="font-display text-xl font-bold text-[#23201E]">
+                Autorização de Estorno
+              </h3>
+              <AcademicBadge codigo="RN02 · RBAC" visivel={modoAvaliador} />
+            </div>
+            <p className="text-xs text-[#6E655F] mt-1 mb-4 leading-relaxed">
+              Por conformidade fiscal, a venda original permanece registrada e um evento compensatório auditável será emitido.
             </p>
-            <form onSubmit={(e) => void handleConfirmarEstorno(e)} className="space-y-3 text-xs">
+            <form onSubmit={(e) => void handleConfirmarEstorno(e)} className="space-y-3.5 text-xs">
               <div>
-                <label className="block font-semibold text-slate-300 mb-1">
+                <label className="block font-bold text-[#23201E] mb-1">
                   Motivo do Estorno (mínimo 5 caracteres)
                 </label>
                 <input
                   type="text"
                   value={motivoEstorno}
                   onChange={(e) => setMotivoEstorno(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-white"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#FAF6EE] border border-[#E6DEC8] text-[#23201E] font-medium"
                   required
                 />
               </div>
 
               {usuarioLogado.getPapel() !== 'GERENTE' && (
-                <div className="p-3 rounded-xl bg-slate-950 border border-purple-500/50 space-y-2">
-                  <div className="text-[11px] font-bold text-purple-300">
-                    Você está logado como OPERADOR. Informe a credencial do GERENTE:
+                <div className="p-3.5 rounded-xl bg-[#FAF6EE] border border-[#E6DEC8] space-y-2.5">
+                  <div className="text-[11px] font-extrabold text-[#E86F2C]">
+                    🔒 Permissão de Gerente Necessária
                   </div>
                   <input
                     type="text"
                     value={loginGerenteModal}
                     onChange={(e) => setLoginGerenteModal(e.target.value)}
                     placeholder="Login do Gerente"
-                    className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white"
+                    className="w-full px-3 py-2 rounded-lg bg-white border border-[#E6DEC8] text-[#23201E]"
                   />
                   <input
                     type="password"
                     value={senhaGerenteModal}
                     onChange={(e) => setSenhaGerenteModal(e.target.value)}
                     placeholder="Senha do Gerente"
-                    className="w-full px-3 py-1.5 rounded bg-slate-900 border border-slate-700 text-white"
+                    className="w-full px-3 py-2 rounded-lg bg-white border border-[#E6DEC8] text-[#23201E]"
                   />
                 </div>
               )}
 
-              <div className="flex justify-end gap-2 pt-3">
+              <div className="flex justify-end gap-2 pt-3 border-t border-[#F2E9D8]">
                 <button
                   type="button"
                   onClick={() => setVendaAlvoEstorno(null)}
-                  className="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 font-semibold cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-[#F2E9D8] text-[#23201E] font-bold cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-400 text-slate-950 font-extrabold cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-[#DC2626] hover:bg-red-700 text-white font-extrabold shadow-sm cursor-pointer"
                 >
-                  Confirmar Estorno (Gerente)
+                  Confirmar Estorno
                 </button>
               </div>
             </form>
@@ -1810,31 +1189,36 @@ export function App(): React.ReactElement {
 
       {/* ───────────────────────── MODAL: RECUSAR PEDIDO DELIVERY ───────────────────────── */}
       {pedidoAlvoRecusa && (
-        <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-6">
-            <h3 className="text-base font-bold text-white mb-3">Recusar Pedido de Delivery</h3>
-            <form onSubmit={handleConfirmarRecusaDelivery} className="space-y-3 text-xs">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="basilico-card rounded-2xl max-w-md w-full p-6 bg-white">
+            <h3 className="font-display text-xl font-bold text-[#23201E] mb-2">
+              Recusar Pedido de Delivery
+            </h3>
+            <p className="text-xs text-[#6E655F] mb-4">
+              Informe o motivo que será enviado automaticamente à plataforma parceira.
+            </p>
+            <form onSubmit={handleConfirmarRecusaDelivery} className="space-y-3.5 text-xs">
               <div>
-                <label className="block font-semibold text-slate-300 mb-1">Motivo da Recusa</label>
+                <label className="block font-bold text-[#23201E] mb-1">Justificativa</label>
                 <input
                   type="text"
                   value={motivoRecusaDelivery}
                   onChange={(e) => setMotivoRecusaDelivery(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-white"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#FAF6EE] border border-[#E6DEC8] text-[#23201E]"
                   required
                 />
               </div>
-              <div className="flex justify-end gap-2 pt-2">
+              <div className="flex justify-end gap-2 pt-3 border-t border-[#F2E9D8]">
                 <button
                   type="button"
                   onClick={() => setPedidoAlvoRecusa(null)}
-                  className="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 font-semibold cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-[#F2E9D8] text-[#23201E] font-bold cursor-pointer"
                 >
                   Voltar
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-lg bg-red-500 text-slate-950 font-bold cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-[#DC2626] hover:bg-red-700 text-white font-bold cursor-pointer"
                 >
                   Confirmar Recusa
                 </button>
