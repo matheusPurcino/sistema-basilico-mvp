@@ -1,0 +1,11 @@
+node_modules/
+dist/
+dist-electron/
+release/
+coverage/
+addons/build/
+*.log
+.DS_Store
+.env
+.env.*
+v1.29.380
