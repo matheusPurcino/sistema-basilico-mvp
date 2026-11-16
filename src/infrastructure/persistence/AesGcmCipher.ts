@@ -16,6 +16,41 @@ export class AcessoNegadoError extends Error {
 const MAGIC = new TextEncoder().encode('BSLC1'); // Basílico SQLCipher v1
 const IV_BYTES = 12;
 export const PBKDF2_ITERACOES = 120_000;
+export const CHAVE_FALLBACK_WEB_DEMO = 'BASILICO_WEB_DEMO_KEY_MVP_2026_AES';
+
+/**
+ * Helper isomórfico para resolver a chave AES-256 em Browser (Vite) e Node/Electron.
+ * Ordem de precedência:
+ * 1. `import.meta.env.VITE_ENCRYPTION_KEY` (Vite / Vercel / Browser)
+ * 2. `process.env.ENCRYPTION_KEY` ou `process.env.CHAVE_CIFRAGEM` (Node / Electron)
+ * 3. Chave de fallback padrão de demonstração (`CHAVE_FALLBACK_WEB_DEMO`)
+ */
+export function obterChaveCifragemIsomorfica(): string {
+  try {
+    const metaEnv =
+      typeof import.meta !== 'undefined'
+        ? (import.meta as unknown as { env?: Record<string, unknown> }).env
+        : undefined;
+    if (metaEnv && typeof metaEnv.VITE_ENCRYPTION_KEY === 'string' && metaEnv.VITE_ENCRYPTION_KEY.trim()) {
+      return metaEnv.VITE_ENCRYPTION_KEY.trim();
+    }
+  } catch {
+    /* ambiente sem suporte a import.meta */
+  }
+
+  try {
+    if (typeof process !== 'undefined' && process?.env) {
+      const nodeKey = process.env.ENCRYPTION_KEY ?? process.env.CHAVE_CIFRAGEM;
+      if (typeof nodeKey === 'string' && nodeKey.trim()) {
+        return nodeKey.trim();
+      }
+    }
+  } catch {
+    /* navegador sem polyfill de process */
+  }
+
+  return CHAVE_FALLBACK_WEB_DEMO;
+}
 
 function subtle(): SubtleCrypto {
   const s = globalThis.crypto?.subtle;

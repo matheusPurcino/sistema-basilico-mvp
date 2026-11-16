@@ -8,6 +8,7 @@ export interface KeyValueStorage {
   setItem(chave: string, valor: string): void;
   removeItem(chave: string): void;
   chaves(prefixo: string): string[];
+  limparTudo?(): void;
 }
 
 export class MemoryStorage implements KeyValueStorage {
@@ -23,6 +24,9 @@ export class MemoryStorage implements KeyValueStorage {
   }
   chaves(prefixo: string): string[] {
     return [...this.dados.keys()].filter((k) => k.startsWith(prefixo));
+  }
+  limparTudo(): void {
+    this.dados.clear();
   }
   get tamanho(): number {
     return this.dados.size;
@@ -47,5 +51,8 @@ export class BrowserLocalStorage implements KeyValueStorage {
       if (k && k.startsWith(prefixo)) out.push(k);
     }
     return out;
+  }
+  limparTudo(): void {
+    this.ls.clear();
   }
 }

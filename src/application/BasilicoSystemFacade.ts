@@ -38,6 +38,7 @@ import {
   SqliteUsuarioRepository,
   SqliteVendaRepository,
   TELEFONE_CLIENTE_FIDELIZADO_DEMO,
+  obterChaveCifragemIsomorfica,
   popularDadosIniciais,
   type KeyValueStorage,
   type PayloadPedidoParceiro,
@@ -46,7 +47,7 @@ import {
 import { AuthSessionService } from './AuthSessionService';
 import { SyncWorker, type RelatorioSincronizacao } from './SyncWorker';
 
-export const CHAVE_AES_PADRAO_SISTEMA = 'BASILICO-AES256-SQLCIPHER-KEY-2026-UNIFEI';
+export const CHAVE_AES_PADRAO_SISTEMA = obterChaveCifragemIsomorfica();
 
 export interface OpcoesCriacaoSistema {
   storage?: KeyValueStorage;
@@ -190,43 +191,94 @@ export class BasilicoSystemFacade {
     this.caixa.atualizarPendencias(this.outboxRepo.contarPendentes());
   }
 
-  static async criar(opcoes: OpcoesCriacaoSistema = {}): Promise<BasilicoSystemFacade> {
+  private static filaCriacao: Promise<unknown> = Promise.resolve();
+
+  static criar(opcoes: OpcoesCriacaoSistema = {}): Promise<BasilicoSystemFacade> {
+    // Serializa inicializações concorrentes (ex.: React.StrictMode no dev server)
+    // para evitar condição de corrida ao gravar salt/keycheck no mesmo storage.
+    const execucao = BasilicoSystemFacade.filaCriacao.then(() =>
+      BasilicoSystemFacade.executarCriacao(opcoes),
+    );
+    BasilicoSystemFacade.filaCriacao = execucao.catch(() => undefined);
+    return execucao;
+  }
+
+  private static async executarCriacao(
+    opcoes: OpcoesCriacaoSistema = {},
+  ): Promise<BasilicoSystemFacade> {
     const storage = opcoes.storage ?? new MemoryStorage();
     const nomeBanco = opcoes.nomeBanco ?? 'basilico.pdv';
-    const chave = opcoes.chaveCifragem === undefined ? CHAVE_AES_PADRAO_SISTEMA : opcoes.chaveCifragem;
+    const chave =
+      opcoes.chaveCifragem && opcoes.chaveCifragem.trim()
+        ? opcoes.chaveCifragem
+        : obterChaveCifragemIsomorfica();
     const relogio = opcoes.relogio ?? new RelogioAjustavel();
     const nuvem = opcoes.nuvem ?? new PostgresCloudMock(storage);
 
-    const db = await SQLiteEngine.abrir({
-      nome: nomeBanco,
-      storage,
-      chave,
-      esquema: ESQUEMA_LOCAL,
-    });
+    const abrirEInstanciar = async (aplicarSeedPadrao: boolean): Promise<BasilicoSystemFacade> => {
+      const db = await SQLiteEngine.abrir({
+        nome: nomeBanco,
+        storage,
+        chave,
+        esquema: ESQUEMA_LOCAL,
+      });
 
-    const sistema = new BasilicoSystemFacade({
-      db,
-      storage,
-      nomeBanco,
-      chaveCifragem: chave ?? '',
-      relogio,
-      nuvem,
-    });
+      const sistema = new BasilicoSystemFacade({
+        db,
+        storage,
+        nomeBanco,
+        chaveCifragem: chave,
+        relogio,
+        nuvem,
+      });
 
-    if (opcoes.popularSeed !== false) {
-      popularDadosIniciais(sistema.usuariosRepo, sistema.produtosRepo, sistema.pedidosRepo, relogio.agora());
-      for (const p of sistema.pedidosRepo.listar()) {
-        sistema.caixa.adicionarPedido(p);
+      if (aplicarSeedPadrao) {
+        popularDadosIniciais(sistema.usuariosRepo, sistema.produtosRepo, sistema.pedidosRepo, relogio.agora());
+        for (const p of sistema.pedidosRepo.listar()) {
+          sistema.caixa.adicionarPedido(p);
+        }
       }
-    }
 
-    if (opcoes.abrirCaixaAutomaticamente !== false && !sistema.caixa.isAberto() && !sistema.caixaRepo.carregarEstado()) {
-      sistema.caixa.abrir(25000, 'sistema');
-      sistema.caixaRepo.salvarEstado(sistema.caixa.exportarEstado());
-    }
+      if (
+        (aplicarSeedPadrao || opcoes.abrirCaixaAutomaticamente !== false) &&
+        !sistema.caixa.isAberto() &&
+        !sistema.caixaRepo.carregarEstado()
+      ) {
+        sistema.caixa.abrir(25000, 'sistema');
+        sistema.caixaRepo.salvarEstado(sistema.caixa.exportarEstado());
+      }
 
-    await db.persistir();
-    return sistema;
+      await db.persistir();
+      return sistema;
+    };
+
+    try {
+      return await abrirEInstanciar(opcoes.popularSeed !== false);
+    } catch (erro) {
+      // Auto-recuperação silenciosa no boot (Web/Electron): se o storage estiver
+      // corrompido ou cifrado com uma chave antiga/incompatível, limpa e reaplica o Seed.
+      console.warn(
+        '[Sistema Basílico] Falha ao decifrar ou restaurar o banco local no boot. Limpando storage e restaurando dados de fábrica...',
+        erro,
+      );
+      storage.limparTudo?.();
+      SQLiteEngine.apagarArmazenamento(storage, nomeBanco);
+      nuvem.limpar();
+      if (opcoes.nuvem) {
+        return abrirEInstanciar(true);
+      }
+      // Recria o PostgresCloudMock limpo sobre o storage recém-limpo
+      return BasilicoSystemFacade.executarCriacao({
+        ...opcoes,
+        storage,
+        nomeBanco,
+        chaveCifragem: chave,
+        relogio,
+        nuvem: new PostgresCloudMock(storage),
+        popularSeed: true,
+        abrirCaixaAutomaticamente: opcoes.abrirCaixaAutomaticamente !== false,
+      });
+    }
   }
 
   /**

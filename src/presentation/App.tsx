@@ -140,16 +140,34 @@ export function App(): React.ReactElement {
     };
   }, [atualizarTela]);
 
-  const handleResetarBancoDemo = useCallback((): void => {
-    SQLiteEngine.apagarArmazenamento(storageNavegador, 'basilico.pdv.web');
-    if (sistema) {
-      sistema.nuvem.limpar();
+  const handleResetarBancoDemo = useCallback(async (): Promise<void> => {
+    try {
+      sistema?.db.fechar();
+    } catch {
+      /* banco já fechado ou não inicializado */
     }
     try {
-      globalThis.localStorage?.removeItem('basilico.cloud.pg_transactions');
+      globalThis.localStorage?.clear();
     } catch {
-      /* ignore */
+      /* ambiente sem localStorage */
     }
+    SQLiteEngine.apagarArmazenamento(storageNavegador, 'basilico.pdv.web');
+    sistema?.nuvem.limpar();
+
+    try {
+      await BasilicoSystemFacade.criar({
+        storage: storageNavegador,
+        nomeBanco: 'basilico.pdv.web',
+        chaveCifragem: CHAVE_AES_PADRAO_SISTEMA,
+        relogio: relogioGlobal,
+        popularSeed: true,
+        abrirCaixaAutomaticamente: true,
+      });
+    } catch (e) {
+      console.warn('[Sistema Basílico] Erro ao executar re-seed durante reset manual:', e);
+    }
+
+    setErroInicializacao(null);
     window.location.reload();
   }, [sistema]);
 
@@ -178,7 +196,7 @@ export function App(): React.ReactElement {
           <p className="text-xs text-[#6E655F] mt-2">{erroInicializacao}</p>
           <button
             type="button"
-            onClick={handleResetarBancoDemo}
+            onClick={() => void handleResetarBancoDemo()}
             className="mt-4 px-4 py-2.5 rounded-xl bg-[#E86F2C] hover:bg-[#D45D1B] text-white font-bold text-xs cursor-pointer"
           >
             Restaurar Dados de Fábrica e Recarregar
@@ -1050,7 +1068,7 @@ export function App(): React.ReactElement {
         onToggleToxiproxy={handleToggleToxiproxy}
         onInjetarPedido={handleInjetarPedido}
         onSimularQuedaEletrica={() => void handleSimularQuedaEletrica()}
-        onResetarBancoDemo={handleResetarBancoDemo}
+        onResetarBancoDemo={() => void handleResetarBancoDemo()}
       />
 
       {/* ───────────────────────── MODAL: CRUD DE PRODUTO ───────────────────────── */}

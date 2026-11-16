@@ -82,8 +82,9 @@ export class SQLiteEngine {
     } else {
       const salt = AesGcmCipher.gerarSalt();
       cipher = await AesGcmCipher.derivar(opcoes.chave, salt);
+      const checkCifrado = bytesParaBase64(await cipher.cifrar(enc.encode(KEYCHECK)));
       storage.setItem(`${nome}.salt`, bytesParaBase64(salt));
-      storage.setItem(`${nome}.keycheck`, bytesParaBase64(await cipher.cifrar(enc.encode(KEYCHECK))));
+      storage.setItem(`${nome}.keycheck`, checkCifrado);
     }
 
     // 2) Snapshot (checkpoint) mais recente
