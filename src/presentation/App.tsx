@@ -602,7 +602,7 @@ export function App(): React.ReactElement {
         {toasts.map((t) => (
           <div
             key={t.id}
-            className={`pointer-events-auto p-3.5 rounded-2xl border shadow-xl text-xs transition-all ${
+            className={`pointer-events-auto p-3.5 rounded-2xl border shadow-xl shadow-stone-900/5 text-xs transition-all ${
               t.tipo === 'SUCESSO'
                 ? 'bg-[#EEF7E6] border-[#4E8C22] text-[#1E3B0B]'
                 : t.tipo === 'ALERTA'
@@ -723,14 +723,16 @@ export function App(): React.ReactElement {
             <span>Unidade:</span>
             <span className="font-semibold text-[#D1C7B8]">Pouso Alegre · MG</span>
           </div>
-          <div className="flex items-center justify-between">
-            <span>Criptografia:</span>
-            <span className="font-mono text-[#7AC13A]">AES-256-GCM</span>
-          </div>
           {modoAvaliador && (
-            <div className="pt-2 border-t border-[#2A2521] text-[10px] text-[#B8AEA2]">
-              UNIFEI · ECOT11A · Matheus Purcino
-            </div>
+            <>
+              <div className="flex items-center justify-between">
+                <span>Criptografia:</span>
+                <span className="font-mono text-[#7AC13A]">AES-256-GCM</span>
+              </div>
+              <div className="pt-2 border-t border-[#2A2521] text-[10px] text-[#B8AEA2]">
+                UNIFEI · ECOT11A · Matheus Purcino
+              </div>
+            </>
           )}
         </div>
       </aside>
@@ -778,14 +780,16 @@ export function App(): React.ReactElement {
         <header className="bg-white border-b border-[#E6DEC8] px-5 py-2.5 sticky top-0 z-30 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
           {/* Esquerda: Status de Conexão + Status do Caixa */}
           <div className="flex flex-wrap items-center gap-2.5">
-            {/* Pílula de Status de Conexão */}
+            {/* Pílula de Status de Conexão (Pulso suave apenas em Sincronizando ou Pendente) */}
             <div
               className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-extrabold border ${
                 estadoMaquina === 'OperandoOnline'
                   ? 'bg-[#EEF7E6] border-[#4E8C22]/40 text-[#3E7319]'
                   : estadoMaquina === 'Sincronizando'
                     ? 'bg-amber-50 border-[#D97706] text-amber-900 animate-pulse'
-                    : 'bg-red-50 border-[#DC2626]/50 text-[#DC2626]'
+                    : outboxPendentes > 0
+                      ? 'bg-red-50 border-[#DC2626]/50 text-[#DC2626] animate-pulse'
+                      : 'bg-red-50 border-[#DC2626]/50 text-[#DC2626]'
               }`}
             >
               <span
@@ -802,7 +806,11 @@ export function App(): React.ReactElement {
                   ? 'Online · Sincronizado'
                   : estadoMaquina === 'Sincronizando'
                     ? 'Sincronizando Lote...'
-                    : `Modo Offline · ${outboxPendentes} na fila`}
+                    : (
+                      <>
+                        Modo Offline · <span className="font-mono">{outboxPendentes}</span> na fila
+                      </>
+                    )}
               </span>
               {modoAvaliador && (
                 <span className="font-mono text-[10px] opacity-80">
@@ -833,16 +841,18 @@ export function App(): React.ReactElement {
 
           {/* Direita: Impressora Térmica + Toggle Modo Avaliador UNIFEI + Perfil */}
           <div className="flex flex-wrap items-center gap-2">
-            {/* Botão da Gaveta da Impressora Térmica */}
+            {/* Botão da Gaveta da Impressora Térmica (Pulso apenas quando há via pendente/sem papel) */}
             <button
               type="button"
               onClick={() => setGavetaImpressoraAberta((v) => !v)}
               className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 border transition cursor-pointer ${
-                !sistema.impressora.possuiPapel()
+                !sistema.impressora.possuiPapel() && filaReimpressao.length > 0
                   ? 'bg-red-50 border-[#DC2626] text-[#DC2626] animate-pulse'
-                  : gavetaImpressoraAberta || gavetaImpressoraFixada
-                    ? 'bg-[#1E1B18] text-[#F7F3EB] border-[#1E1B18]'
-                    : 'bg-[#FAF6EE] hover:bg-[#F2E9D8] text-[#23201E] border-[#E6DEC8]'
+                  : !sistema.impressora.possuiPapel()
+                    ? 'bg-amber-50 border-[#D97706] text-amber-900'
+                    : gavetaImpressoraAberta || gavetaImpressoraFixada
+                      ? 'bg-[#1E1B18] text-[#F7F3EB] border-[#1E1B18]'
+                      : 'bg-[#FAF6EE] hover:bg-[#F2E9D8] text-[#23201E] border-[#E6DEC8]'
               }`}
             >
               <IconPrinter size={15} />
@@ -1045,8 +1055,8 @@ export function App(): React.ReactElement {
 
       {/* ───────────────────────── MODAL: CRUD DE PRODUTO ───────────────────────── */}
       {modalProdutoAberto && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="basilico-card rounded-2xl max-w-md w-full p-6 bg-white">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="basilico-card shadow-xl shadow-stone-900/10 rounded-2xl max-w-md w-full p-6 bg-white">
             <h3 className="font-display text-xl font-bold text-[#23201E] mb-4">
               {produtoEditando ? `Editar Prato #${produtoEditando.id}` : 'Cadastrar Novo Prato'}
             </h3>
@@ -1120,8 +1130,8 @@ export function App(): React.ReactElement {
 
       {/* ───────────────────────── MODAL: AUTORIZAR ESTORNO RBAC (RN02) ───────────────────────── */}
       {vendaAlvoEstorno && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="basilico-card rounded-2xl max-w-md w-full p-6 bg-white border-t-4 border-t-[#DC2626]">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="basilico-card shadow-xl shadow-stone-900/10 rounded-2xl max-w-md w-full p-6 bg-white border-t-4 border-t-[#DC2626]">
             <div className="flex items-center justify-between gap-2">
               <h3 className="font-display text-xl font-bold text-[#23201E]">
                 Autorização de Estorno
@@ -1189,8 +1199,8 @@ export function App(): React.ReactElement {
 
       {/* ───────────────────────── MODAL: RECUSAR PEDIDO DELIVERY ───────────────────────── */}
       {pedidoAlvoRecusa && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="basilico-card rounded-2xl max-w-md w-full p-6 bg-white">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="basilico-card shadow-xl shadow-stone-900/10 rounded-2xl max-w-md w-full p-6 bg-white">
             <h3 className="font-display text-xl font-bold text-[#23201E] mb-2">
               Recusar Pedido de Delivery
             </h3>

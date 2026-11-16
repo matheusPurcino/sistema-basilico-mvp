@@ -40,10 +40,10 @@ export function LoginView({
       ═══════════════════════════════════════════════════════════════════════ */}
       <aside className="lg:col-span-5 xl:col-span-5 espresso-hero-pattern text-[#F7F3EB] p-8 lg:p-12 flex flex-col justify-between relative overflow-hidden border-b lg:border-b-0 lg:border-r border-[#332D27]">
         {/* Topo Institucional */}
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#2A2521] border border-[#3E362E] text-xs font-medium text-[#E5DAC8]">
             <span className="w-2 h-2 rounded-full bg-[#5CA329] shadow-[0_0_8px_#5CA329]" />
-            <span>Terminal PDV Híbrido · Pouso Alegre, MG</span>
+            <span>Pouso Alegre, MG · Terminal Ativo</span>
           </div>
 
           <button
@@ -60,9 +60,9 @@ export function LoginView({
           </button>
         </div>
 
-        {/* Centro: Medalhão Oficial Basílico + Identidade */}
+        {/* Centro: Medalhão Oficial Basílico + Apresentação Acolhedora */}
         <div className="my-10 lg:my-auto flex flex-col items-start">
-          <BrandLogo size="xl" className="mb-6 shadow-2xl" />
+          <BrandLogo size="xl" className="mb-6 shadow-xl shadow-stone-900/10" />
 
           <span className="text-xs font-bold uppercase tracking-[0.22em] text-[#E86F2C] mb-2">
             Cucina Artigianale &amp; Trattoria
@@ -70,42 +70,23 @@ export function LoginView({
           <h1 className="font-display text-4xl xl:text-5xl font-bold italic text-[#F7F3EB] tracking-tight leading-tight">
             Restaurante Basílico
           </h1>
-          <p className="mt-3 text-base text-[#D1C7B8] leading-relaxed max-w-md">
+          <p className="mt-3 text-base text-[#D1C7B8] leading-relaxed max-w-md font-medium">
             Tradição Italiana &amp; Operação Resiliente — Pouso Alegre, MG
           </p>
+          <p className="mt-2.5 text-sm text-[#A99E90] leading-relaxed max-w-md">
+            Massas frescas artesanais, risotos clássicos e pizzas de longa fermentação. Um ponto de venda pensado para manter o salão e o delivery em harmonia do primeiro ao último pedido.
+          </p>
 
-          {/* Indicadores de Proteção Local & Carrinho Salvo */}
-          <div className="mt-8 w-full max-w-md space-y-3">
-            <div className="p-4 rounded-2xl bg-[#28231F]/90 border border-[#3D352E] flex items-start gap-3.5">
-              <div className="w-10 h-10 rounded-xl bg-[#4E8C22]/20 border border-[#5CA329]/40 flex items-center justify-center text-[#7AC13A] shrink-0 mt-0.5">
-                <IconShield size={20} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-bold text-[#F7F3EB]">
-                    Motor Local Offline-First Ativo
-                  </span>
-                  <AcademicBadge codigo="RNF01 · AES-256" visivel={modoAvaliador} variante="dark" />
-                </div>
-                <p className="text-xs text-[#B8AEA2] mt-1 leading-relaxed">
-                  {modoAvaliador
-                    ? 'Banco SQLite em modo WAL com criptografia autenticada AES-256-GCM (PBKDF2 120.000 iterações).'
-                    : 'Operação contínua mesmo sem internet. Todas as vendas e comandas ficam protegidas neste terminal.'}
-                </p>
-              </div>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-[#28231F]/90 border border-[#3D352E] flex items-center justify-between gap-3">
+          {/* Aviso amigável caso exista comanda em andamento salva no balcão */}
+          {itensSalvosCarrinho > 0 && (
+            <div className="mt-6 w-full max-w-md p-3.5 rounded-2xl bg-[#28231F]/80 border border-[#3D352E] flex items-center justify-between gap-3">
               <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-[#D1C7B8]">
-                    {modoAvaliador ? 'Comanda Persistida no WAL (RPO = 0)' : 'Comanda Recuperada no Terminal'}
-                  </span>
-                  <AcademicBadge codigo="CT12" visivel={modoAvaliador} variante="dark" />
-                </div>
-                <p className="text-[11px] text-[#968B82] mt-0.5">
-                  Protegida contra fechamento acidental ou queda elétrica
-                </p>
+                <span className="text-xs font-bold text-[#F7F3EB] block">
+                  Comanda em andamento no balcão
+                </span>
+                <span className="text-[11px] text-[#A99E90]">
+                  Pronta para continuar assim que você entrar
+                </span>
               </div>
               <div className="text-right font-mono">
                 <div className="text-sm font-bold text-[#7AC13A]">
@@ -114,13 +95,23 @@ export function LoginView({
                 <div className="text-[11px] text-[#B8AEA2]">{itensSalvosCarrinho} item(ns)</div>
               </div>
             </div>
-          </div>
+          )}
+
+          {/* Selo discreto exibido apenas quando o Modo Avaliador UNIFEI está ativo */}
+          {modoAvaliador && (
+            <div className="mt-5 inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#2A2521]/90 border border-[#E86F2C]/40 text-[11px] text-[#E5DAC8]">
+              <IconShield size={14} className="text-[#7AC13A] shrink-0" />
+              <span className="font-mono">
+                Segurança Ativa: SQLite WAL · AES-256-GCM · bcrypt cost 12 · RPO=0 (CT10/CT12)
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Rodapé Institucional */}
         <div className="pt-4 border-t border-[#332D27] flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#968B82]">
           <span>Sistema Basílico POS · Edição Comercial v2.0</span>
-          <span>UNIFEI · ECOT11A · Matheus Gouveia Purcino (2024006907)</span>
+          {modoAvaliador && <span>UNIFEI · ECOT11A · Matheus Gouveia Purcino (2024006907)</span>}
         </div>
       </aside>
 
@@ -147,7 +138,7 @@ export function LoginView({
 
           {/* Alerta de Sessão Bloqueada por Inatividade */}
           {bloqueadaInatividade && (
-            <div className="mb-5 p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-start gap-3 shadow-sm">
+            <div className="mb-5 p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-start gap-3 shadow-xl shadow-stone-900/5">
               <span className="text-lg leading-none">⏱️</span>
               <div>
                 <div className="font-bold text-amber-950 flex items-center gap-2">
@@ -165,7 +156,7 @@ export function LoginView({
           {erroLogin && (
             <div
               role="alert"
-              className="mb-5 p-4 rounded-2xl bg-red-50 border border-red-300 text-red-900 text-xs font-medium flex items-center gap-2.5 shadow-sm"
+              className="mb-5 p-4 rounded-2xl bg-red-50 border border-red-300 text-red-900 text-xs font-medium flex items-center gap-2.5 shadow-xl shadow-stone-900/5"
             >
               <span className="w-2 h-2 rounded-full bg-[#DC2626] shrink-0" />
               <span>{erroLogin}</span>
@@ -173,7 +164,7 @@ export function LoginView({
           )}
 
           {/* Card Principal de Login */}
-          <div className="basilico-card rounded-2xl p-6 sm:p-7">
+          <div className="basilico-card rounded-2xl p-6 sm:p-7 shadow-xl shadow-stone-900/5">
             <form onSubmit={onSubmitLogin} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-[#23201E] mb-1.5">
@@ -204,7 +195,7 @@ export function LoginView({
                   </label>
                   {modoAvaliador && (
                     <span className="text-[10px] font-mono text-[#6E655F]">
-                      bcrypt (cost 12) · Cache Local
+                      bcrypt (cost 12)
                     </span>
                   )}
                 </div>
@@ -253,7 +244,7 @@ export function LoginView({
               <button
                 type="button"
                 onClick={() => onAcessoRapido('OPERADOR', true)}
-                className="basilico-card-interactive rounded-2xl p-3.5 text-left flex items-start gap-3 group cursor-pointer"
+                className="basilico-card-interactive rounded-2xl p-3.5 text-left flex items-start gap-3 group cursor-pointer shadow-xl shadow-stone-900/5"
               >
                 <div className="w-10 h-10 rounded-xl bg-[#FFF0E6] border border-[#F5D0B8] text-[#E86F2C] flex items-center justify-center shrink-0 group-hover:bg-[#E86F2C] group-hover:text-white transition">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -278,7 +269,7 @@ export function LoginView({
               <button
                 type="button"
                 onClick={() => onAcessoRapido('GERENTE', true)}
-                className="basilico-card-interactive rounded-2xl p-3.5 text-left flex items-start gap-3 group cursor-pointer"
+                className="basilico-card-interactive rounded-2xl p-3.5 text-left flex items-start gap-3 group cursor-pointer shadow-xl shadow-stone-900/5"
               >
                 <div className="w-10 h-10 rounded-xl bg-[#EEF7E6] border border-[#C6E3B0] text-[#4E8C22] flex items-center justify-center shrink-0 group-hover:bg-[#4E8C22] group-hover:text-white transition">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

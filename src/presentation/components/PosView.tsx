@@ -8,7 +8,7 @@ import {
   type MetodoPagamento,
   type Produto,
 } from '../../domain';
-import { AcademicBadge, IconCheck, IconEdit, IconPlus, IconSearch, IconTrash } from './Icons';
+import { AcademicBadge, IconCheck, IconEdit, IconMoreVertical, IconPlus, IconSearch, IconTrash } from './Icons';
 
 export interface PosViewProps {
   produtos: Produto[];
@@ -118,6 +118,7 @@ export function PosView({
   const [busca, setBusca] = useState('');
   const [descontoAberto, setDescontoAberto] = useState(false);
   const [valorRecebidoInput, setValorRecebidoInput] = useState('');
+  const [menuAbertoId, setMenuAbertoId] = useState<number | null>(null);
 
   // Mapa rápido de quantidades no carrinho por idProduto
   const mapaQtdComanda = useMemo(() => {
@@ -163,13 +164,18 @@ export function PosView({
   }, [metodoSelecionado, valorRecebidoInput, totalCentavos]);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:h-[calc(100vh-8.5rem)] min-h-[620px]">
+    <div
+      onClick={() => {
+        if (menuAbertoId !== null) setMenuAbertoId(null);
+      }}
+      className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:h-[calc(100vh-8.5rem)] min-h-[620px]"
+    >
       {/* ═══════════════════════════════════════════════════════════════════════
           ZONA 1: CATÁLOGO GASTRONÔMICO (ESQUERDA — ~65% / 8 COLUNAS)
       ═══════════════════════════════════════════════════════════════════════ */}
       <div className="lg:col-span-7 xl:col-span-8 flex flex-col min-h-0">
         {/* Barra Superior: Busca Instantânea + Botão Novo Prato */}
-        <div className="basilico-card rounded-2xl p-3.5 mb-3.5 flex flex-wrap items-center justify-between gap-3 shrink-0">
+        <div className="basilico-card shadow-xl shadow-stone-900/5 rounded-2xl p-3.5 mb-3.5 flex flex-wrap items-center justify-between gap-3 shrink-0">
           <div className="relative flex-1 min-w-[220px]">
             <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-[#6E655F] pointer-events-none">
               <IconSearch size={17} />
@@ -232,7 +238,7 @@ export function PosView({
         {/* Grade Rolável de Cards de Produtos (3 colunas em telas grandes) */}
         <div className="flex-1 overflow-y-auto pr-1 pb-4">
           {produtosFiltrados.length === 0 ? (
-            <div className="basilico-card rounded-2xl p-12 text-center">
+            <div className="basilico-card shadow-xl shadow-stone-900/5 rounded-2xl p-12 text-center">
               <div className="text-3xl mb-2">🍽️</div>
               <h3 className="text-base font-bold text-[#23201E]">Nenhum prato encontrado</h3>
               <p className="text-xs text-[#6E655F] mt-1">
@@ -240,75 +246,111 @@ export function PosView({
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
               {produtosFiltrados.map((p) => {
                 const meta = META_CATEGORIAS[p.categoria];
                 const qtdNaComanda = mapaQtdComanda.get(p.id) ?? 0;
+                const menuAberto = menuAbertoId === p.id;
 
                 return (
                   <div
                     key={p.id}
-                    onClick={() => onAdicionarCarrinho(p.id)}
-                    className={`basilico-card-interactive rounded-2xl overflow-hidden flex flex-col justify-between relative cursor-pointer group ${
+                    onClick={() => {
+                      setMenuAbertoId(null);
+                      onAdicionarCarrinho(p.id);
+                    }}
+                    onMouseLeave={() => {
+                      if (menuAberto) setMenuAbertoId(null);
+                    }}
+                    className={`basilico-card-interactive shadow-xl shadow-stone-900/5 rounded-2xl overflow-visible flex flex-col justify-between relative cursor-pointer group ${
                       qtdNaComanda > 0 ? 'ring-2 ring-[#E86F2C] border-[#E86F2C]' : ''
                     }`}
                   >
                     {/* Faixa Superior Colorida da Categoria */}
-                    <div className={`h-1.5 w-full bg-gradient-to-r ${meta.faixaCor}`} />
+                    <div className={`h-1.5 w-full rounded-t-2xl bg-gradient-to-r ${meta.faixaCor}`} />
 
-                    <div className="p-4 flex-1 flex flex-col justify-between">
+                    <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between">
                       <div>
-                        {/* Topo do Card: Tag da Categoria + Badge na Comanda + Ações CRUD */}
-                        <div className="flex items-center justify-between gap-1.5">
+                        {/* Topo do Card: Tag da Categoria + Badge na Comanda + Menu ⋮ no Hover */}
+                        <div className="flex items-center justify-between gap-2 relative">
                           <span
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wider ${meta.badgeBg} ${meta.badgeText}`}
+                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wider ${meta.badgeBg} ${meta.badgeText}`}
                           >
                             <span>{meta.icone}</span>
                             <span>{meta.label}</span>
                           </span>
 
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1.5">
                             {qtdNaComanda > 0 && (
                               <span className="px-2 py-0.5 rounded-full bg-[#E86F2C] text-white font-mono font-bold text-[10px] shadow-xs">
                                 {qtdNaComanda}x na comanda
                               </span>
                             )}
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onAbrirModalEditarProduto(p);
-                              }}
-                              title="Editar prato"
-                              className="p-1.5 rounded-lg text-[#6E655F] hover:text-[#23201E] hover:bg-[#F2E9D8] transition cursor-pointer"
-                            >
-                              <IconEdit size={14} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onExcluirProduto(p);
-                              }}
-                              title="Excluir prato do catálogo"
-                              className="p-1.5 rounded-lg text-[#6E655F] hover:text-[#DC2626] hover:bg-red-50 transition cursor-pointer"
-                            >
-                              <IconTrash size={14} />
-                            </button>
+
+                            {/* Botão discreto de três pontos (⋮) visível ao passar o mouse */}
+                            <div className="relative">
+                              <button
+                                type="button"
+                                aria-label={`Ações para ${p.nome}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setMenuAbertoId(menuAberto ? null : p.id);
+                                }}
+                                title="Opções do prato"
+                                className={`p-1.5 rounded-lg text-[#6E655F] hover:text-[#23201E] hover:bg-[#F2E9D8] transition cursor-pointer ${
+                                  menuAberto
+                                    ? 'opacity-100 bg-[#F2E9D8] text-[#23201E]'
+                                    : 'sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100'
+                                }`}
+                              >
+                                <IconMoreVertical size={15} />
+                              </button>
+
+                              {/* Menu Suspenso Discreto (Editar / Excluir) */}
+                              {menuAberto && (
+                                <div
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="absolute right-0 top-8 z-30 w-40 rounded-xl bg-white border border-[#E6DEC8] shadow-xl shadow-stone-900/10 py-1.5 text-xs"
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setMenuAbertoId(null);
+                                      onAbrirModalEditarProduto(p);
+                                    }}
+                                    className="w-full px-3 py-2 text-left font-semibold text-[#23201E] hover:bg-[#FAF6EE] flex items-center gap-2 transition cursor-pointer"
+                                  >
+                                    <IconEdit size={13} className="text-[#E86F2C]" />
+                                    <span>Editar prato</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setMenuAbertoId(null);
+                                      onExcluirProduto(p);
+                                    }}
+                                    className="w-full px-3 py-2 text-left font-semibold text-[#DC2626] hover:bg-red-50 flex items-center gap-2 transition cursor-pointer"
+                                  >
+                                    <IconTrash size={13} />
+                                    <span>Excluir prato</span>
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
 
-                        {/* Nome do Prato e Descrição em 2 linhas */}
-                        <h3 className="text-sm font-extrabold text-[#23201E] mt-2.5 group-hover:text-[#E86F2C] transition leading-snug">
+                        {/* Nome do Prato e Descrição */}
+                        <h3 className="text-sm font-extrabold text-[#23201E] mt-3 group-hover:text-[#E86F2C] transition leading-snug">
                           {p.nome}
                         </h3>
-                        <p className="text-xs text-[#6E655F] mt-1 line-clamp-2 leading-relaxed">
+                        <p className="text-xs text-[#6E655F] mt-1.5 line-clamp-2 leading-relaxed">
                           {p.descricao}
                         </p>
                       </div>
 
                       {/* Rodapé do Card: Preço em Destaque + Botão Adicionar */}
-                      <div className="mt-3.5 pt-3 border-t border-[#F2E9D8] flex items-center justify-between gap-2">
+                      <div className="mt-4 pt-3 border-t border-[#F2E9D8] flex items-center justify-between gap-2">
                         <span className="font-mono font-extrabold text-base text-[#23201E]">
                           {formatarBRL(p.precoCentavos)}
                         </span>
@@ -316,6 +358,7 @@ export function PosView({
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
+                            setMenuAbertoId(null);
                             onAdicionarCarrinho(p.id);
                           }}
                           className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1 transition cursor-pointer ${
@@ -340,7 +383,7 @@ export function PosView({
       {/* ═══════════════════════════════════════════════════════════════════════
           ZONA 2: COMANDA DE BALCÃO & CHECKOUT FIXO (DIREITA — ~35% / 4 COLUNAS)
       ═══════════════════════════════════════════════════════════════════════ */}
-      <div className="lg:col-span-5 xl:col-span-4 basilico-card rounded-2xl flex flex-col h-full min-h-[520px] overflow-hidden">
+      <div className="lg:col-span-5 xl:col-span-4 basilico-card shadow-xl shadow-stone-900/5 rounded-2xl flex flex-col h-full min-h-[520px] overflow-hidden relative">
         {/* Cabeçalho da Comanda */}
         <div className="px-4 py-3.5 bg-[#1E1B18] text-[#F7F3EB] flex items-center justify-between gap-2 shrink-0">
           <div>
@@ -388,7 +431,7 @@ export function PosView({
             carrinho.getItens().map((item) => (
               <div
                 key={item.getIdProduto()}
-                className="bg-white border border-[#E6DEC8] rounded-xl p-2.5 flex items-center justify-between gap-2 shadow-2xs"
+                className="bg-white border border-[#E6DEC8] rounded-xl p-2.5 flex items-center justify-between gap-2 shadow-xs"
               >
                 <div className="min-w-0 flex-1">
                   <div className="text-xs font-bold text-[#23201E] truncate">
@@ -432,8 +475,8 @@ export function PosView({
           )}
         </div>
 
-        {/* Rodapé de Pagamento Fixo na Base da Comanda */}
-        <div className="p-4 bg-white border-t border-[#E6DEC8] space-y-3 shrink-0">
+        {/* Rodapé de Pagamento Fixo (Sticky Bottom com Gradiente Suave) */}
+        <div className="sticky bottom-0 z-10 p-4 bg-gradient-to-t from-white via-white to-[#FAF6EE]/95 backdrop-blur-xs border-t border-[#E6DEC8] space-y-3 shrink-0 shadow-[0_-8px_20px_-6px_rgba(35,32,30,0.06)]">
           {/* Linha Compacta/Expansível de Desconto */}
           <div>
             <div className="flex items-center justify-between">
@@ -552,7 +595,9 @@ export function PosView({
           {/* Resumo Financeiro da Comanda */}
           <div className="p-3 rounded-xl bg-[#FAF6EE] border border-[#E6DEC8] space-y-1">
             <div className="flex justify-between text-xs text-[#6E655F]">
-              <span>Subtotal ({carrinho.getQuantidadeItens()} itens)</span>
+              <span>
+                Subtotal (<span className="font-mono">{carrinho.getQuantidadeItens()}</span> itens)
+              </span>
               <span className="font-mono font-semibold">{formatarBRL(carrinho.getSubtotalCentavos())}</span>
             </div>
             {descontoAtivoCentavos > 0 && (
@@ -584,7 +629,7 @@ export function PosView({
             >
               <IconCheck size={18} />
               <span>
-                Finalizar Venda e Emitir Cupom ({formatarBRL(totalCentavos)})
+                Finalizar Venda (<span className="font-mono">{formatarBRL(totalCentavos)}</span>)
               </span>
             </button>
           ) : (

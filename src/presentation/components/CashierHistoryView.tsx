@@ -70,7 +70,7 @@ export function CashierHistoryView({
       ═══════════════════════════════════════════════════════════════════════ */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {/* KPI 1: Saldo Atual em Caixa */}
-        <div className="basilico-card rounded-2xl p-4 border-l-4 border-l-[#4E8C22]">
+        <div className="basilico-card shadow-xl shadow-stone-900/5 rounded-2xl p-4 border-l-4 border-l-[#4E8C22]">
           <div className="flex items-center justify-between text-xs text-[#6E655F] font-bold">
             <span>Saldo Atual em Caixa</span>
             <span
@@ -90,7 +90,7 @@ export function CashierHistoryView({
         </div>
 
         {/* KPI 2: Total Vendido no Turno */}
-        <div className="basilico-card rounded-2xl p-4 border-l-4 border-l-[#E86F2C]">
+        <div className="basilico-card shadow-xl shadow-stone-900/5 rounded-2xl p-4 border-l-4 border-l-[#E86F2C]">
           <div className="flex items-center justify-between text-xs text-[#6E655F] font-bold">
             <span>Total Vendido no Turno</span>
             <span className="font-mono text-[11px] text-[#E86F2C] font-extrabold">
@@ -106,23 +106,27 @@ export function CashierHistoryView({
         </div>
 
         {/* KPI 3: Vendas Pendentes de Sincronização (Outbox) */}
-        <div className="basilico-card rounded-2xl p-4 border-l-4 border-l-[#D97706]">
+        <div className="basilico-card shadow-xl shadow-stone-900/5 rounded-2xl p-4 border-l-4 border-l-[#D97706]">
           <div className="flex items-center justify-between text-xs text-[#6E655F] font-bold">
             <span>Pendentes na Outbox</span>
             <AcademicBadge codigo="RN04" visivel={modoAvaliador} variante="amber" />
           </div>
-          <div className="mt-2 font-mono text-2xl font-extrabold text-[#D97706]">
+          <div className={`mt-2 font-mono text-2xl font-extrabold text-[#D97706] ${outboxPendentes > 0 ? 'animate-pulse' : ''}`}>
             {outboxPendentes} evento(s)
           </div>
           <div className="mt-1 text-[11px] text-[#6E655F]">
             {outboxPendentes === 0
               ? '100% sincronizado com a nuvem'
-              : 'Aguardando reconexão WAN para envio'}
+              : (
+                <>
+                  <span className="font-mono font-semibold">{kpis.qtdPendentesVendas}</span> venda(s) aguardando reconexão WAN
+                </>
+              )}
           </div>
         </div>
 
         {/* KPI 4: Total Estornado */}
-        <div className="basilico-card rounded-2xl p-4 border-l-4 border-l-[#DC2626]">
+        <div className="basilico-card shadow-xl shadow-stone-900/5 rounded-2xl p-4 border-l-4 border-l-[#DC2626]">
           <div className="flex items-center justify-between text-xs text-[#6E655F] font-bold">
             <span>Total Estornado</span>
             <AcademicBadge codigo="RN02 / RBAC" visivel={modoAvaliador} />
@@ -131,7 +135,7 @@ export function CashierHistoryView({
             {formatarBRL(kpis.totalEstornado)}
           </div>
           <div className="mt-1 text-[11px] text-[#6E655F]">
-            {eventosCompensatorios.length} evento(s) compensatório(s)
+            <span className="font-mono font-semibold">{eventosCompensatorios.length}</span> evento(s) compensatório(s)
           </div>
         </div>
       </div>

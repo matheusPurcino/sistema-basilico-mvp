@@ -70,7 +70,7 @@ export function DeliveryHubView({
       case 'RECEBIDO':
         return (
           <span className="px-2.5 py-1 rounded-full bg-[#FFF0E6] text-[#E86F2C] border border-[#E86F2C]/40 font-extrabold text-[11px] flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-[#E86F2C] animate-ping" />
+            <span className="w-2 h-2 rounded-full bg-[#E86F2C]" />
             <span>Aguardando Aceite</span>
           </span>
         );
@@ -183,11 +183,11 @@ export function DeliveryHubView({
       <div className="flex flex-wrap items-center gap-2">
         {(
           [
-            { id: 'TODOS', label: 'Todos os Pedidos', qtd: pedidos.length, cor: 'bg-[#1E1B18] text-white' },
-            { id: 'NOVOS', label: 'Novos / Aguardando Aceite', qtd: qtdNovos, cor: 'bg-[#E86F2C] text-white' },
-            { id: 'RETIDOS', label: 'Retidos na Impressora', qtd: qtdRetidos, cor: 'bg-[#D97706] text-white' },
-            { id: 'EM_PREPARO', label: 'Em Preparo na Cozinha', qtd: qtdPreparo, cor: 'bg-[#4E8C22] text-white' },
-            { id: 'FINALIZADOS', label: 'Concluídos / Recusados', qtd: qtdFinalizados, cor: 'bg-[#6E655F] text-white' },
+            { id: 'TODOS', label: 'Todos os Pedidos', qtd: pedidos.length },
+            { id: 'NOVOS', label: 'Novos / Aguardando Aceite', qtd: qtdNovos },
+            { id: 'RETIDOS', label: 'Retidos na Impressora', qtd: qtdRetidos },
+            { id: 'EM_PREPARO', label: 'Em Preparo na Cozinha', qtd: qtdPreparo },
+            { id: 'FINALIZADOS', label: 'Concluídos / Recusados', qtd: qtdFinalizados },
           ] as const
         ).map((aba) => {
           const ativo = filtroAtivo === aba.id;
@@ -226,9 +226,9 @@ export function DeliveryHubView({
           return (
             <div
               key={ped.getIdInterno()}
-              className={`basilico-card rounded-2xl p-5 flex flex-col justify-between transition ${
+              className={`basilico-card shadow-xl shadow-stone-900/5 rounded-2xl p-5 flex flex-col justify-between transition ${
                 isNovo
-                  ? 'ring-2 ring-[#E86F2C] border-[#E86F2C] shadow-lg'
+                  ? 'ring-2 ring-[#E86F2C] border-[#E86F2C]'
                   : isRetido
                     ? 'ring-2 ring-[#D97706] border-[#D97706] bg-amber-50/40'
                     : isPreparo

@@ -39,7 +39,7 @@ export function ThermalPrinterDrawer({
 
   return (
     <div
-      className={`fixed top-16 right-4 bottom-14 z-40 w-[370px] max-w-[calc(100vw-2rem)] flex flex-col rounded-2xl bg-[#1E1B18] text-[#F7F3EB] border border-[#3E362E] shadow-2xl overflow-hidden transition-all`}
+      className="fixed top-16 right-4 bottom-14 z-40 w-[370px] max-w-[calc(100vw-2rem)] flex flex-col rounded-2xl bg-[#1E1B18] text-[#F7F3EB] border border-[#3E362E] shadow-xl shadow-stone-900/10 overflow-hidden transition-all"
     >
       {/* Cabeçalho da Impressora Térmica */}
       <div className="px-4 py-3 bg-[#26221E] border-b border-[#3A322B] flex items-center justify-between gap-2 shrink-0">
@@ -123,8 +123,8 @@ export function ThermalPrinterDrawer({
         )}
       </div>
 
-      {/* Corpo Rolável com Papel Térmico Amarelo e Borda Serrilhada */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[#171412]">
+      {/* Corpo Rolável 100% Dedicado ao Papel Térmico Estilizado */}
+      <div className="flex-1 overflow-y-auto p-4 bg-[#171412]">
         {trabalhoAtivo ? (
           <div>
             {/* Borda Serrilhada Superior (Papel Rasgado) */}
@@ -157,35 +157,32 @@ export function ThermalPrinterDrawer({
             </p>
           </div>
         )}
-
-        {/* Acordeão Retrátil: Ver Bytes ESC/POS N-API */}
-        {trabalhoAtivo && (
-          <div className="rounded-xl bg-[#26221E] border border-[#3A322B] overflow-hidden">
-            <button
-              type="button"
-              onClick={() => setMostrarHexDump((v) => !v)}
-              className="w-full px-3.5 py-2.5 flex items-center justify-between text-left text-[11px] font-bold text-[#E5DAC8] hover:bg-[#2F2A25] transition cursor-pointer"
-            >
-              <span className="flex items-center gap-1.5">
-                <span className="text-[#E86F2C] font-mono">0x1B</span>
-                <span>Ver Bytes ESC/POS N-API ({trabalhoAtivo.bytesEscPos.byteLength} bytes)</span>
-              </span>
-              <span className="text-[10px] text-[#B8AEA2]">{mostrarHexDump ? '▲ Ocultar' : '▼ Expandir'}</span>
-            </button>
-
-            {mostrarHexDump && (
-              <div className="p-3 bg-[#171412] border-t border-[#3A322B] space-y-1.5">
-                <div className="text-[10px] text-[#968B82] font-mono">
-                  Init (1B 40) · Codepage 850 (1B 74 02) · Partial Cut (1D 56 41 03)
-                </div>
-                <div className="font-mono text-[10px] text-[#7AC13A] break-all leading-relaxed max-h-36 overflow-y-auto">
-                  {trabalhoAtivo.hexDump}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
       </div>
+
+      {/* Rodapé Minimalista e Discreto: Modo Técnico sob demanda */}
+      {trabalhoAtivo && (
+        <div className="border-t border-[#2E2722] bg-[#1A1714] px-4 py-2.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => setMostrarHexDump((v) => !v)}
+            className="w-full py-1 text-center text-[11px] font-medium text-[#968B82] hover:text-[#E5DAC8] transition cursor-pointer"
+          >
+            [ 🖨️ Modo Técnico: Inspecionar Bytes ESC/POS {mostrarHexDump ? '▲' : '▼'} ]
+          </button>
+
+          {mostrarHexDump && (
+            <div className="mt-2 p-2.5 rounded-xl bg-[#12100E] border border-[#2E2722] space-y-1.5 transition-all">
+              <div className="flex items-center justify-between text-[10px] text-[#968B82] font-mono">
+                <span>Init (1B 40) · CP850 · Cut (1D 56)</span>
+                <span>{trabalhoAtivo.bytesEscPos.byteLength} bytes</span>
+              </div>
+              <div className="font-mono text-[10px] text-[#7AC13A] break-all leading-relaxed max-h-28 overflow-y-auto">
+                {trabalhoAtivo.hexDump}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
